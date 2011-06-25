@@ -12,9 +12,17 @@ struct city {
   string name;
 };
 
-ostream& operator<<(ostream& os, const city& dt) {
-  os << dt.name << " (" << dt.x << ", " << dt.y << ")";
+ostream& operator<<(ostream& os, const city& c) {
+  os << c.name << " (" << c.x << ", " << c.y << ")";
   return os;
+}
+
+istream& operator>>(istream& is, city &c) {
+  is >> c.x;
+  is >> c.y;
+  is.get();
+  getline(is, c.name);
+  return is;
 }
 
 int main(int argc, char **argv) {
@@ -35,13 +43,8 @@ int main(int argc, char **argv) {
   datafile >> length;
 
   vector<city> cities(length);
-  char namebuf[256];
   for(size_t i = 0; i < length; ++i) {
-    datafile >> cities[i].x;
-    datafile >> cities[i].y;
-    datafile.get();
-    datafile.get(namebuf, 256);
-    cities[i].name = namebuf;
+    datafile >> cities[i];
 
     if(datafile.eof()) {
       cerr << "Unexpected EOF in datafile!" << endl;
