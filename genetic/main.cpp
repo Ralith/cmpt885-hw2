@@ -12,6 +12,11 @@ struct city {
   string name;
 };
 
+ostream& operator<<(ostream& os, const city& dt) {
+  os << dt.name << " (" << dt.x << ", " << dt.y << ")";
+  return os;
+}
+
 int main(int argc, char **argv) {
   if(argc != 2) {
     cerr << "Usage: " << argv[0] << " <dataset>" << endl;
@@ -51,7 +56,7 @@ int main(int argc, char **argv) {
   }
 
   for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
-    cout << i->name << endl;
+    cout << *i << endl;
   }
 
   return 0;
