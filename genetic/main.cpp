@@ -9,8 +9,9 @@
 using namespace std;
 
 //define these as user input later if necessary
-int population_size = 50000; //population should always be an even number
-int generations = 100;
+int population_size = 10000; //population should always be an even number
+int generations = 50;
+double mutation_likelihood = 0.03;
 
 struct city {
   float x, y;
@@ -44,7 +45,7 @@ struct calculatedpath {
 };
 
 
-vector<city> geneticTSP(vector<city> cities);
+calculatedpath geneticTSP(vector<city> cities);
 double** genDistMatrix(vector<city> cities);
 void genInitialPopulation(vector<calculatedpath> &retPop, int numCities, double** distMatrix);
 void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath parent2, double **distMatrix);
@@ -116,7 +117,7 @@ int main(int argc, char **argv) {
 }
 
 //return ordered path corresponding to best path found
-vector<city> geneticTSP(vector<city> cities)
+calculatedpath geneticTSP(vector<city> cities)
 {   /**initialise**/
     
     //generate distance matrix for the complete tsp graph
@@ -137,70 +138,51 @@ vector<city> geneticTSP(vector<city> cities)
                
      /* 2.)  Sort the population and SELECT only the best half of the current
              population for 'mating' */
-       
        sort(population.begin(), population.end());
        vector<calculatedpath> bestpop(population.size()/2);
        copy(population.begin(), (population.end() - (int)(population.size()/2)), bestpop.begin());
        cout << "Best population in generation " << generation << ": " << bestpop[0] << endl;
        
-       
-     /* 3.)  CROSSOVER the best half to reproduce children 
-             Use modified Grefenstette Greedy Crossover 
-             a.)  Child[i] takes Parent[i]'s first city.  Then:
-                    for each city x in child[i]:
-                        select cities a,b from x in either parent[i]|[i+1] path.
-                               -  choose closest a,b, and if DNE in child[i] then
-                                  extend
-                               -  o/w, if a or b exists, choose other that DNE and extend
-                               -  o/w, if both exist in child[i], choose random unchosen city
-             Loop across all children.  */
-             
+     /* 3.)  CROSSOVER the best half of the population to reproduce children */
        vector<calculatedpath> children(population.size()/2); 
        for (int i = 0; i < children.size(); i++)
-       {   
-           if (i != children.size()-1)
+       {   if (i != children.size()-1)
               crossover(children[i], bestpop[i], bestpop[i+1], distMatrix);
            else
               crossover(children[i], bestpop[i], bestpop[0], distMatrix);
        }
        
-     /* 4.)  Randomly MUTATE some of the children */
-     
-     /* 5.)  POPULATE the new population by replacing poor population with children*/
-      
-      copy(children.begin(), children.end(), population.begin() + (int)population.size()/2);
-        
-       /*
-       vector<calculatedpath> worstpop(population.size()/2);
-       copy(population.begin()+(int)(population.size()/2), population.end(), worstpop.begin());
-*/
-       
-   /*            
-      for (int i = 0; i < bestpop.size(); i++)
-       {   cout << bestpop[i] << endl;
-       }
-       cout << "children: " << endl;
+     /* 4.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path. */   
        for (int i = 0; i < children.size(); i++)
-       {   cout << children[i] << endl;
-       }
-       */
-               
-    }          
-       
-       
-               
+       {   int randomNum = rand()%100; // random number from 0-99.  accurate to 2 decimal places
+           if (randomNum <= (mutation_likelihood*100)) //mutate
+              swap(children[rand()%children[i].path.size()], children[rand()%children[i].path.size()]);
+      }
+              
+     
+     /* 5.)  POPULATE the new population by replacing poor population with newly created children */
+      copy(children.begin(), children.end(), population.begin() + (int)population.size()/2);
+      
+      //onto next generation...
+    }
     
+ 
+    for (int i = 0; i < population.size(); i++)
+      population[i].evaluateDistance(distMatrix);
+    sort(population.begin(), population.end());
     
-
-    //mutate    //with mutation_likelihood, flip two cities in each trip
-    //populate  //generate new population by taking parents and newly formed children
-    
-    
-
-        
-    return cities;
+    return population[0];
 }
-//Crossover algorithm based on Grefenstette's modified Greedy Crossover.  See above for pseudocode
+
+/* Crossover function to generate a new child from two parents.
+   Use modified Grefenstette Greedy Crossover: 
+      Child takes parent1's first city.  Then:
+         for each city x in Child:
+            select next cities a,b from x in both parents' paths.
+                a.)  choose closest a,b, and if city DNE in Child's path then extend path with it
+                b.)  o/w, if one city already exists in Child's path, choose other one that DNE and extend with it
+                c.)  o/w, if both cities exist in Child's path, choose random unchosen city and extend with it
+*/
 void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath parent2, double **distMatrix)
 {    vector<int> path(parent1.path.size());
      
@@ -245,7 +227,7 @@ void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath par
          }
      }
      
-     child = calculatedpath(path);
+     child = calculatedpath(path); //encapsulate newly created path into our data structure for easier dist calc/comparison later.
 }
      
 //helper func: each entry in the returned distance matrix corresponds to the distance between city(i,j)
