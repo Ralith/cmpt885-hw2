@@ -1,5 +1,5 @@
 add_executable(genetic
-  main.cpp
+  genetic_tsp.cpp
   )
 
 find_library(M_LIB m)
