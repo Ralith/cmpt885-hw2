@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstdlib>
+#include "time.h"
 
 using namespace std;
 
@@ -184,8 +185,8 @@ void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath par
 {    vector<int> path(parent1.path.size());
      
      //hash map to quickly check if a city already exists in child's path
-     bool hasUsedCity[path.size()];
-     for (unsigned i=0; i < path.size(); i++)
+	 vector<bool> hasUsedCity(path.size());
+     for (unsigned i=0; i < hasUsedCity.size(); i++)
      {   hasUsedCity[i] = false;
      }
      
