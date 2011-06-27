@@ -31,11 +31,9 @@ struct calculatedpath {
     void evaluateDistance(double** distMatrix)
     {   distance = 0;
         //calculate distance of the path
+            
         for (int i = 0; i < path.size(); i++)
-        {   if (i != path.size()-1)
-                distance+= distMatrix[path[i]][path[i+1]];
-            else //wraparound since a tsp path is a cycle
-                distance+= distMatrix[path[i]][path[0]];
+        {   distance+= distMatrix[path[i]][path[(i+1)%path.size()]]; //mod for wraparound
         }
     }
     
@@ -131,44 +129,41 @@ calculatedpath geneticTSP(vector<city> cities)
     //"evolve" the seeded population for a specified number of times.
     for (int generation = 1; generation <= generations ; generation++)
     {/* 1.)  EVALUATE the distance for each path in the population
-             Can easily parallelize this */
+             Can easily parallelize this */       
        for (int i = 0; i < population.size(); i++)
        {   population[i].evaluateDistance(distMatrix);
        }
-               
-     /* 2.)  Sort the population and SELECT only the best half of the current
+
+     /* 2.)  Sort the population and SELECT only the best (top) half of the current
              population for 'mating' */
        sort(population.begin(), population.end());
        vector<calculatedpath> bestpop(population.size()/2);
-       copy(population.begin(), (population.end() - (int)(population.size()/2)), bestpop.begin());
-       cout << "Best population in generation " << generation << ": " << bestpop[0] << endl;
+       copy(population.begin(), (population.begin() + (int)(population.size()/2)), bestpop.begin());
+       cout << "Best path in generation " << generation << ": " << bestpop[0] << endl;
        
      /* 3.)  CROSSOVER the best half of the population to reproduce children */
-       vector<calculatedpath> children(population.size()/2); 
+       vector<calculatedpath> children(bestpop.size()); 
        for (int i = 0; i < children.size(); i++)
-       {   if (i != children.size()-1)
-              crossover(children[i], bestpop[i], bestpop[i+1], distMatrix);
-           else
-              crossover(children[i], bestpop[i], bestpop[0], distMatrix);
+       {  crossover(children[i], bestpop[i], bestpop[(i+1)%bestpop.size()], distMatrix); //mod for wraparound
        }
        
      /* 4.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path. */   
        for (int i = 0; i < children.size(); i++)
-       {   int randomNum = rand()%100; // random number from 0-99.  accurate to 2 decimal places
-           if (randomNum <= (mutation_likelihood*100)) //mutate
-              swap(children[rand()%children[i].path.size()], children[rand()%children[i].path.size()]);
-      }
-              
-     
+       {   //murate
+           if (rand()%100 <= (mutation_likelihood*100)) //random number from 0-99.  accurate to 2 decimal places
+              swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
+       }
+       
      /* 5.)  POPULATE the new population by replacing poor population with newly created children */
-      copy(children.begin(), children.end(), population.begin() + (int)population.size()/2);
+      copy(children.begin(), children.end(), population.begin() + (int)(population.size()-children.size()));
       
-      //onto next generation...
+      //onto the next generation...
     }
     
  
+    //finished algorithm.  sort to find path with lowest distance (lazy)
     for (int i = 0; i < population.size(); i++)
-      population[i].evaluateDistance(distMatrix);
+       population[i].evaluateDistance(distMatrix);
     sort(population.begin(), population.end());
     
     return population[0];
@@ -176,8 +171,8 @@ calculatedpath geneticTSP(vector<city> cities)
 
 /* Crossover function to generate a new child from two parents.
    Use modified Grefenstette Greedy Crossover: 
-      Child takes parent1's first city.  Then:
-         for each city x in Child:
+      Child path initially only has parent1's first city.  Then:
+         for each city x in Child's path:
             select next cities a,b from x in both parents' paths.
                 a.)  choose closest a,b, and if city DNE in Child's path then extend path with it
                 b.)  o/w, if one city already exists in Child's path, choose other one that DNE and extend with it
@@ -186,6 +181,7 @@ calculatedpath geneticTSP(vector<city> cities)
 void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath parent2, double **distMatrix)
 {    vector<int> path(parent1.path.size());
      
+     //hash map to quickly check if a city already exists in child's path
      bool hasUsedCity[path.size()];
      for (int i=0; i < path.size(); i++)
      {   hasUsedCity[i] = false;
@@ -196,13 +192,14 @@ void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath par
      hasUsedCity[parent1.path[0]] = true;
      
      for (int i = 0; i < path.size()-1; i++)
-     {   //find canditate cities connected to current city in child         
+     {         
+         //find candidate cities connected to current city in child         
          int parent1Index = distance(parent1.path.begin(), find(parent1.path.begin(), parent1.path.end(), path[i]));
-         int nextCity1 = (parent1Index != parent1.path.size()-1)?parent1.path[parent1Index+1]:parent1.path[0]; //wraparound in-case
+         int nextCity1 = parent1.path[(parent1Index+1)%parent1.path.size()]; //wraparound in-case
          int parent2Index = distance(parent2.path.begin(), find(parent2.path.begin(), parent2.path.end(), path[i]));
-         int nextCity2 = (parent2Index != parent2.path.size()-1)?parent2.path[parent2Index+1]:parent2.path[0]; //wraparound in-case
+         int nextCity2 = parent2.path[(parent2Index+1)%parent2.path.size()]; //wraparound in-case
          
-         //see which has a shorter distance, simple lookup
+         //see which candidate city has a shorter distance, simple lookup
          int closerCity = (distMatrix[path[i]][nextCity1] <= distMatrix[path[i]][nextCity2])?nextCity1:nextCity2;
          int fartherCity = (distMatrix[path[i]][nextCity1] <= distMatrix[path[i]][nextCity2])?nextCity2:nextCity1;
          
@@ -225,8 +222,7 @@ void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath par
              path[i+1] = randCity;
              hasUsedCity[randCity] = true;
          }
-     }
-     
+     }     
      child = calculatedpath(path); //encapsulate newly created path into our data structure for easier dist calc/comparison later.
 }
      
@@ -257,6 +253,6 @@ void genInitialPopulation(vector<calculatedpath> &retPop, int numCities, double*
         retPop[i] = calculatedpath(randPath);
     }
     
-    delete &unshuffledPath;
+    //delete &unshuffledPath;  THIS CAUSES PROGRAM TO SCREW UP BADLY
 }
         
