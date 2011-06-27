@@ -166,14 +166,14 @@ calculatedpath geneticTSP(vector<city> cities)
        for (int i = 0; i < children.size(); i++)
        {   //mutate
            if (rand()%100 < (mutation_likelihood*100)) //random number from 0-99.  accurate to 2 decimal places
-           {  calculatedpath old = children[i];
-              for (int j = 0; j < 10; j++) //swap a few nodes
+           {  //calculatedpath old = children[i];
+              for (int j = 0; j < 5; j++) //swap a few cities
               { swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
               }
-              children[i].evaluateDistance(distMatrix);
-              if (old.distance < children[i].distance)
-              {   children[i] = old;
-              }
+              //children[i].evaluateDistance(distMatrix);
+              //if (old.distance < children[i].distance)
+              //{   children[i] = old;
+              //}
            }
        }
 
