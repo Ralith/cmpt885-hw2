@@ -93,8 +93,7 @@ int main(int argc, char **argv) {
   for(size_t i = 0; i < length; ++i)
   {  datafile >> cities[i];
      cities[i].index = i;    //encode each city as a numerical index for easy retrieval and path representation
-  }
-
+ 
     if(datafile.eof()) {
       cerr << "Unexpected EOF in datafile!" << endl;
       return 3;
@@ -105,7 +104,8 @@ int main(int argc, char **argv) {
       cerr << "Malformed datafile!" << endl;
       return 5;
     }
-  
+  }
+
   srand ( time(NULL) );
   geneticTSP(cities);
   
