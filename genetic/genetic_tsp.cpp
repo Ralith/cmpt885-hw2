@@ -28,7 +28,7 @@ struct calculatedpath {
     double distance;
 
     calculatedpath(){}
-    calculatedpath(vector <int> p)
+    calculatedpath(vector<int> &p)
     {   path = p;
         distance = 0;
     }
@@ -46,10 +46,10 @@ struct calculatedpath {
 };
 
 
-calculatedpath geneticTSP(vector<city> cities);
-double** genDistMatrix(vector<city> cities);
+calculatedpath geneticTSP(vector<city> &cities);
+double** genDistMatrix(const vector<city> &cities);
 void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities);
-void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath parent2, double **distMatrix);
+void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix);
 
 ostream& operator<<(ostream& os, const city& c) {
   os << c.name << " (" << c.x << ", " << c.y << ")";
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since during each generation, evaluating distances for each candidate path is independent of other paths.  
 //similarly, crossing over to generate new children is also independent from child to child.
-calculatedpath geneticTSP(vector<city> cities)
+calculatedpath geneticTSP(vector<city> &cities)
 {   /**initialise**/
 
     int cores = omp_get_num_procs();
@@ -211,7 +211,7 @@ calculatedpath geneticTSP(vector<city> cities)
                 b.)  o/w, if one city already exists in Child's path, choose other one that DNE and extend with it
                 c.)  o/w, if both cities exist in Child's path, choose random unchosen city and extend with it
 */
-void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath parent2, double **distMatrix)
+void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix)
 {    vector<int> path(parent1.path.size());
      
      //hash map to quickly check if a city already exists in child's path
@@ -260,7 +260,7 @@ void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath par
 }
      
 //helper func: each entry in the returned distance matrix corresponds to the distance between city(i,j)
-double** genDistMatrix(vector<city> cities)
+double** genDistMatrix(const vector<city> &cities)
 {   int numCities = cities.size();   
     double** retDistMatrix = new double*[numCities];
     
