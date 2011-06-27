@@ -13,9 +13,10 @@
 using namespace std;
 
 //define these as user input later if necessary
-int population_size = 10000; //population should always be an even number
-int generations = 200;
-double mutation_likelihood = 0.1;
+int population_size = 20000; //population should always be an even number
+int generations = 100;
+double mutation_likelihood = 0.03;
+
 
 struct city {
   float x, y;
@@ -166,14 +167,14 @@ calculatedpath geneticTSP(vector<city> &cities)
        for (int i = 0; i < children.size(); i++)
        {   //mutate
            if (rand()%100 < (mutation_likelihood*100)) //random number from 0-99.  accurate to 2 decimal places
-           {  //calculatedpath old = children[i];
-              for (int j = 0; j < 5; j++) //swap a few cities
-              { swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
+           {  calculatedpath old = children[i];
+              for (int j = 0; j < 2; j++) //swap a few cities
+              {  swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
               }
-              //children[i].evaluateDistance(distMatrix);
-              //if (old.distance < children[i].distance)
-              //{   children[i] = old;
-              //}
+              children[i].evaluateDistance(distMatrix);
+              if (old.distance < children[i].distance)
+              {   children[i] = old;
+              }
            }
        }
 
@@ -184,10 +185,12 @@ calculatedpath geneticTSP(vector<city> &cities)
        {  //only compute distances if we haven't done so yet -- this is an optimization step since the top half of the population's distances will have been computed already
           if (children[i].distance == 0)
             children[i].evaluateDistance(distMatrix);
+          else
+            cout << " WTF " << endl;
        }
        
      /* 5.)  POPULATE the new population by replacing poor half of the current population with newly created children */
-      copy(children.begin(), children.end(), population.begin() + (int)(population.size()/2));
+      copy(children.begin(), children.end(), population.begin() + (int)(population.size()-children.size()));
 
       //onto the next generation...
     }
