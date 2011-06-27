@@ -34,7 +34,7 @@ struct calculatedpath {
     {   distance = 0;
         //calculate distance of the path
             
-        for (int i = 0; i < path.size(); i++)
+      for (unsigned i = 0; i < path.size(); i++)
         {   distance+= distMatrix[path[i]][path[(i+1)%path.size()]]; //mod for wraparound
         }
     }
@@ -47,7 +47,7 @@ struct calculatedpath {
 
 calculatedpath geneticTSP(vector<city> cities);
 double** genDistMatrix(vector<city> cities);
-void genInitialPopulation(vector<calculatedpath> &retPop, int numCities, double** distMatrix);
+void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities);
 void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath parent2, double **distMatrix);
 
 ostream& operator<<(ostream& os, const city& c) {
@@ -57,7 +57,7 @@ ostream& operator<<(ostream& os, const city& c) {
 
 ostream& operator<<(ostream& os, const calculatedpath& p) {
   os << "Path dist:" << p.distance << ", Path: (";
-  for (int i = 0; i < p.path.size(); i++)
+  for (unsigned i = 0; i < p.path.size(); i++)
   {  os << p.path[i] << ",";
   }
   os << ")";
@@ -126,13 +126,13 @@ calculatedpath geneticTSP(vector<city> cities)
     //from here on:  refer to paths as encoded indices of cities only (optimization) -- don't need x, y, or names anymore
     //generate an initial population (i.e. paths) to seed the genetic algorithm
     vector<calculatedpath> population(population_size);
-    genInitialPopulation(population, cities.size(), distMatrix);
+    genInitialPopulation(population, cities.size());
     
     //"evolve" the seeded population for a specified number of times.
     for (int generation = 1; generation <= generations ; generation++)
     {/* 1.)  EVALUATE the distance for each path in the population
              Can easily parallelize this */       
-       for (int i = 0; i < population.size(); i++)
+       for (unsigned i = 0; i < population.size(); i++)
        {   population[i].evaluateDistance(distMatrix);
        }
 
@@ -145,12 +145,12 @@ calculatedpath geneticTSP(vector<city> cities)
        
      /* 3.)  CROSSOVER the best half of the population to reproduce children */
        vector<calculatedpath> children(bestpop.size()); 
-       for (int i = 0; i < children.size(); i++)
+       for (unsigned i = 0; i < children.size(); i++)
        {  crossover(children[i], bestpop[i], bestpop[(i+1)%bestpop.size()], distMatrix); //mod for wraparound
        }
        
      /* 4.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path. */   
-       for (int i = 0; i < children.size(); i++)
+       for (unsigned i = 0; i < children.size(); i++)
        {   //murate
            if (rand()%100 <= (mutation_likelihood*100)) //random number from 0-99.  accurate to 2 decimal places
               swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
@@ -164,7 +164,7 @@ calculatedpath geneticTSP(vector<city> cities)
     
  
     //finished algorithm.  sort to find path with lowest distance (lazy)
-    for (int i = 0; i < population.size(); i++)
+    for (unsigned i = 0; i < population.size(); i++)
        population[i].evaluateDistance(distMatrix);
     sort(population.begin(), population.end());
     
@@ -185,7 +185,7 @@ void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath par
      
      //hash map to quickly check if a city already exists in child's path
      bool hasUsedCity[path.size()];
-     for (int i=0; i < path.size(); i++)
+     for (unsigned i=0; i < path.size(); i++)
      {   hasUsedCity[i] = false;
      }
      
@@ -193,7 +193,7 @@ void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath par
      path[0] = parent1.path[0];
      hasUsedCity[parent1.path[0]] = true;
      
-     for (int i = 0; i < path.size()-1; i++)
+     for (unsigned i = 0; i < path.size()-1; i++)
      {         
          //find candidate cities connected to current city in child         
          int parent1Index = distance(parent1.path.begin(), find(parent1.path.begin(), parent1.path.end(), path[i]));
@@ -216,7 +216,7 @@ void crossover(calculatedpath &child, calculatedpath parent1, calculatedpath par
          } //both cities have been used, randomly choose one that hasn't then
          else
          {   vector<int> availCities;
-             for (int x = 0; x < path.size(); x++)
+             for (unsigned x = 0; x < path.size(); x++)
              {   if (!hasUsedCity[x])
                     availCities.push_back(x);
              }
@@ -244,12 +244,12 @@ double** genDistMatrix(vector<city> cities)
     return retDistMatrix;
 }
 //helper func:  generate an initial population (i.e. paths) to seed the genetic algorithm
-void genInitialPopulation(vector<calculatedpath> &retPop, int numCities, double** distMatrix)
+void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities)
 {   vector<int> unshuffledPath(numCities);
-    for (int i = 0; i < numCities; i++)
+    for (unsigned i = 0; i < numCities; i++)
         unshuffledPath[i] = i;
             
-    for (int i = 0; i < retPop.size(); i++)
+    for (unsigned i = 0; i < retPop.size(); i++)
     {   vector<int> randPath = unshuffledPath;
         random_shuffle(randPath.begin(), randPath.end());
         retPop[i] = calculatedpath(randPath);
