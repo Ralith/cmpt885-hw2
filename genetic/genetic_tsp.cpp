@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstdlib>
+#include <cstring>
 #include "time.h"
 #include "omp.h"
 
@@ -86,7 +87,7 @@ istream& operator>>(istream& is, city &c) {
 }
 
 int main(int argc, char **argv) {
-  char *path;
+  string path;
   unsigned cores = 0;
   if(argc == 3) {
     path = argv[2];
@@ -101,9 +102,11 @@ int main(int argc, char **argv) {
   omp_set_num_threads(cores);
   cout << "Number of threads: " << cores << endl;
   cout << "Data file: " << path << endl;
-  
+
+  srand ( time(NULL) );
+
   ifstream datafile;
-  datafile.open(path, ios::in);
+  datafile.open(path.c_str(), ios::in);
 
   if(!datafile.is_open()) {
     cerr << "Failed to open datafile: " << strerror(errno) << endl;
@@ -111,31 +114,52 @@ int main(int argc, char **argv) {
   }
 
   size_t length;
-  datafile >> length;
-
-  vector<city> cities(length);
-  for(size_t i = 0; i < length; ++i)
-  {  datafile >> cities[i];
-     cities[i].index = i;    //encode each city as a numerical index for easy retrieval and path representation
- 
-    if(datafile.eof()) {
-      cerr << "Unexpected EOF in datafile!" << endl;
-      return 3;
-    } else if(datafile.bad()) {
-      cerr << "Error reading from datafile: " << strerror(errno) << endl;
-      return 4;
-    } else if(datafile.fail()) {
-      cerr << "Malformed datafile!" << endl;
-      return 5;
+  if(path.substr(path.size()-3, path.size()) == "tsp") {
+    string line;
+    getline(datafile, line);
+    getline(datafile, line);
+    getline(datafile, line);
+    getline(datafile, line);
+    length = atoi(line.substr(line.find(':')+1).c_str());
+    vector<city> cities(length);
+    getline(datafile, line);
+    if(line != "EDGE_WEIGHT_TYPE : EUC_2D") {
+      cerr << "Noneuclidian inputs not supported!" << endl;
+      return 6;
     }
-  }
+    getline(datafile, line);
+    for(size_t i = 0; i < length; ++i) {
+      datafile >> cities[i].index;
+      datafile >> cities[i].x;
+      datafile >> cities[i].y;
+    }
+    geneticTSP(cities);
+    for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
+      cout << "City " << (*i).index << ":" << *i << endl;
+    }
 
-  srand ( time(NULL) );
-
-  geneticTSP(cities);
-  
-  for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
-    cout << "City " << (*i).index << ":" << *i << endl;
+  } else {
+    datafile >> length;
+    vector<city> cities(length);
+    for(size_t i = 0; i < length; ++i)
+      {  datafile >> cities[i];
+	cities[i].index = i;    //encode each city as a numerical index for easy retrieval and path representation
+ 
+	if(datafile.eof()) {
+	  cerr << "Unexpected EOF in datafile!" << endl;
+	  return 3;
+	} else if(datafile.bad()) {
+	  cerr << "Error reading from datafile: " << strerror(errno) << endl;
+	  return 4;
+	} else if(datafile.fail()) {
+	  cerr << "Malformed datafile!" << endl;
+	  return 5;
+	}
+      }
+      geneticTSP(cities);
+      for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
+	cout << "City " << (*i).index << ":" << *i << endl;
+      }
   }
   
   return 0;
@@ -146,6 +170,7 @@ int main(int argc, char **argv) {
 //similarly, crossing over to generate new children is also independent from child to child.
 calculatedpath geneticTSP(vector<city> &cities)
 {
+  cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
     double** distMatrix = genDistMatrix(cities);
     
@@ -156,7 +181,7 @@ calculatedpath geneticTSP(vector<city> &cities)
 
     //calculate all of the distances for the initial population first.
     #pragma omp parallel for
-    for (int i = 0; i < population.size(); i++)
+    for (unsigned i = 0; i < population.size(); i++)
     {   population[i].evaluateDistance(distMatrix);
     }
     
@@ -184,11 +209,11 @@ calculatedpath geneticTSP(vector<city> &cities)
        int numSelected = 0;
        while (numSelected != population.size()/2)
        {  vector<calculatedpath> curTournament(tournamentSize);
-          for (int i = 0; i < tournamentSize; i++)
+          for (unsigned i = 0; i < tournamentSize; i++)
           {  curTournament[i] = population[rand()%population.size()];
           }
           sort(curTournament.begin(), curTournament.end());
-          for (int i = 0; i < tournamentSize; i++)
+          for (unsigned i = 0; i < tournamentSize; i++)
           {   if (rand()%10000 < (double)(tournamentProb*pow((double)(1-tournamentProb),i)*10000))
               {  bestpop[numSelected] = curTournament[i];
                  numSelected++;
