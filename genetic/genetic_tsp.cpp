@@ -14,12 +14,12 @@ using namespace std;
 
 //define these as user input later if necessary
 int population_size = 10000; //population should always be an even number
-int generations = 50;
-double mutation_likelihood = 0.03;
+int generations = 1000;
+double mutation_likelihood = 0.1;
 
 //tournament selection
-int tournamentSize = 3;
-double tournamentProb = 0.8;
+int tournamentSize = 5;
+double tournamentProb = 0.6;
 
 struct city {
   float x, y;
@@ -67,13 +67,13 @@ ostream& operator<<(ostream& os, const city& c) {
 }
 
 ostream& operator<<(ostream& os, const calculatedpath& p) {
-  os << "Path dist:" << p.distance << ", Path: (";
-  for (unsigned i = 0; i < p.path.size(); i++)
+  os << "Path dist:" << p.distance; // ", Path: (";
+  /*for (unsigned i = 0; i < p.path.size(); i++)
   {  if (i != p.path.size()-1)
        os << p.path[i] << ",";
      else
        os << p.path[i] << ")";
-  }
+  }*/
   return os;
 }
 
@@ -164,11 +164,21 @@ calculatedpath geneticTSP(vector<city> &cities)
     //"evolve" the seeded population for a specified number of generations.
     for (int generation = 1; generation <= generations ; generation++)
     {
-     /* 1.)  SELECT only the best half of the population for 'mating' */
+ /***** 1.)  SELECT only the best half of the population for 'mating' */
+
+       //get minimum path for this generation and make sure it's in the bestpop.  we don't want to lose any good paths to the selection process!
+       float min = HUGE_VAL;
+       int minIndex = -1;
+       for (int i = 0; i < population.size(); i++)
+       {  if (population[i].distance < min)
+          {  min = population[i].distance;
+             minIndex = i;
+          }
+       }
+       cout << "Best path in generation " << generation << ": " << population[minIndex] << endl;
 
        //tournament elitist selection
        //http://en.wikipedia.org/wiki/Tournament_selection
-
        vector <calculatedpath> bestpop(population.size()/2);
 
        int numSelected = 0;
@@ -187,19 +197,8 @@ calculatedpath geneticTSP(vector<city> &cities)
               }
           }                  
        }
-
-       //get minimum path to print out for this generation
-       float min = HUGE_VAL;
-       int minIndex = -1;
-       for (int i = 0; i < population.size(); i++)
-       {  if (population[i].distance < min)
-          {  min = population[i].distance;
-             minIndex = i;
-          }
-       }
-       cout << "Best path in generation " << generation << ": " << population[minIndex] << endl;
-       
-     /* 2.)  CROSSOVER the best half of the population to reproduce children */
+     
+ /***** 2.)  CROSSOVER the best half of the population to reproduce children */
        vector<calculatedpath> children(bestpop.size()); //every two parent pairs creates one child, i.e. #children == #bestpop, and #children + #bestpop == population
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
@@ -207,18 +206,18 @@ calculatedpath geneticTSP(vector<city> &cities)
        }
        
 
-     /* 3.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path, and keeping it only if the path is an improvement. */
+ /***** 3.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path, and keeping it only if the path is an improvement. */
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
        {   //mutate
            if (rand()%100 < (mutation_likelihood*100)) //random number from 0-99.  accurate to 2 decimal places
-           {  for (int j = 0; j < 2; j++) //swap a few cities
+           {  for (int j = 0; j < 5; j++) //swap a few cities
               {  swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
               }
            }
        }
 
-     /* 4.)  EVALUATE the distance for each newly created child
+ /***** 4.)  EVALUATE the distance for each newly created child
              Can easily parallelize this */
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
@@ -229,7 +228,7 @@ calculatedpath geneticTSP(vector<city> &cities)
             cout << " WTF " << endl;
        }
        
-     /* 5.)  POPULATE the new population by having the top half as the best selected parents, and the bottom half as the children of those parents */
+ /***** 5.)  POPULATE the new population by having the top half as the best selected parents, and the bottom half as the children of those parents */
       copy(bestpop.begin(), bestpop.end(), population.begin());
       copy(children.begin(), children.end(), population.begin() + (int)(bestpop.size()));
       
