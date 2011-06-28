@@ -77,13 +77,24 @@ istream& operator>>(istream& is, city &c) {
 }
 
 int main(int argc, char **argv) {
-  if(argc != 2) {
-    cerr << "Usage: " << argv[0] << " <dataset>" << endl;
+  char *path;
+  unsigned cores = 0;
+  if(argc == 3) {
+    path = argv[2];
+    cores = atoi(argv[1]);
+    omp_set_num_threads(cores);
+  } else if(argc == 2) {
+    path = argv[1];
+  } else {
+    cerr << "Usage: " << argv[0] << " [threads] <datafile>" << endl;
     return 1;
   }
+  cores = cores ? cores : omp_get_num_procs();
+  cout << "Number of threads: " << cores << endl;
+  cout << "Data file: " << path << endl;
   
   ifstream datafile;
-  datafile.open(argv[1], ios::in);
+  datafile.open(path, ios::in);
 
   if(!datafile.is_open()) {
     cerr << "Failed to open datafile: " << strerror(errno) << endl;
@@ -125,12 +136,7 @@ int main(int argc, char **argv) {
 //note that this is easily parallelizable since during each generation, evaluating distances for each candidate path is independent of other paths.  
 //similarly, crossing over to generate new children is also independent from child to child.
 calculatedpath geneticTSP(vector<city> &cities)
-{   /**initialise**/
-
-    int cores = omp_get_num_procs();
-    cout << "Number of cores: " << cores << endl;
-    omp_set_num_threads(6);
-    
+{
     //generate distance matrix for the complete tsp graph
     double** distMatrix = genDistMatrix(cities);
     
