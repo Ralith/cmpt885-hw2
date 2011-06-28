@@ -13,10 +13,13 @@
 using namespace std;
 
 //define these as user input later if necessary
-int population_size = 20000; //population should always be an even number
-int generations = 100;
+int population_size = 10000; //population should always be an even number
+int generations = 50;
 double mutation_likelihood = 0.03;
 
+//tournament selection
+int tournamentSize = 3;
+double tournamentProb = 0.8;
 
 struct city {
   float x, y;
@@ -35,7 +38,8 @@ struct calculatedpath {
     }
     
     void evaluateDistance(double** distMatrix)
-    {   //calculate distance of the path          
+    {   //calculate distance of the path 
+        distance = 0;
         for (int i = 0; i < path.size(); i++)
         {   distance+= distMatrix[path[i]][path[(i+1)%path.size()]]; //mod for wraparound
         }
@@ -43,6 +47,11 @@ struct calculatedpath {
     
     bool operator < (const calculatedpath &other) const
     {    return distance < other.distance;
+    }
+    calculatedpath& operator = (const calculatedpath &other) 
+    {    path = other.path;
+         distance = other.distance;
+         return *this;
     }
 };
 
@@ -82,7 +91,6 @@ int main(int argc, char **argv) {
   if(argc == 3) {
     path = argv[2];
     cores = atoi(argv[1]);
-    omp_set_num_threads(cores);
   } else if(argc == 2) {
     path = argv[1];
   } else {
@@ -90,6 +98,7 @@ int main(int argc, char **argv) {
     return 1;
   }
   cores = cores ? cores : omp_get_num_procs();
+  omp_set_num_threads(cores);
   cout << "Number of threads: " << cores << endl;
   cout << "Data file: " << path << endl;
   
@@ -151,35 +160,60 @@ calculatedpath geneticTSP(vector<city> &cities)
     {   population[i].evaluateDistance(distMatrix);
     }
     
+    
     //"evolve" the seeded population for a specified number of generations.
     for (int generation = 1; generation <= generations ; generation++)
     {
-     /* 1.)  Sort the population and SELECT only the best (top) half of the current
-             population for 'mating' */
-       sort(population.begin(), population.end());
-       vector<calculatedpath> bestpop(population.size()/2);
-       copy(population.begin(), (population.begin() + (int)(population.size()/2)), bestpop.begin());
-       cout << "Best path in generation " << generation << ": " << bestpop[0] << endl;
+     /* 1.)  SELECT only the best half of the population for 'mating' */
+
+       //tournament elitist selection
+       //http://en.wikipedia.org/wiki/Tournament_selection
+
+       vector <calculatedpath> bestpop(population.size()/2);
+
+       int numSelected = 0;
+       while (numSelected != population.size()/2)
+       {  vector<calculatedpath> curTournament(tournamentSize);
+          for (int i = 0; i < tournamentSize; i++)
+          {  curTournament[i] = population[rand()%population.size()];
+          }
+          sort(curTournament.begin(), curTournament.end());
+          for (int i = 0; i < tournamentSize; i++)
+          {   if (rand()%10000 < (double)(tournamentProb*pow((double)(1-tournamentProb),i)*10000))
+              {  bestpop[numSelected] = curTournament[i];
+                 numSelected++;
+                 if (numSelected == population.size()/2)
+                    break;
+              }
+          }                  
+       }
+
+       //get minimum path to print out for this generation
+       float min = HUGE_VAL;
+       int minIndex = -1;
+       for (int i = 0; i < population.size(); i++)
+       {  if (population[i].distance < min)
+          {  min = population[i].distance;
+             minIndex = i;
+          }
+       }
+       cout << "Best path in generation " << generation << ": " << population[minIndex] << endl;
        
      /* 2.)  CROSSOVER the best half of the population to reproduce children */
-       vector<calculatedpath> children(bestpop.size()); //every two parent pairs creates one children, i.e. # of children == # of bestpop, and #children + #bestpop == population
+       vector<calculatedpath> children(bestpop.size()); //every two parent pairs creates one child, i.e. #children == #bestpop, and #children + #bestpop == population
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
        {  crossover(children[i], bestpop[i], bestpop[(i+1)%bestpop.size()], distMatrix); //mod for wraparound
        }
        
-     /* 3.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path, and keeping it only if the path is an improvement. */  
+
+     /* 3.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path, and keeping it only if the path is an improvement. */
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
        {   //mutate
            if (rand()%100 < (mutation_likelihood*100)) //random number from 0-99.  accurate to 2 decimal places
-           {  calculatedpath old = children[i];
-              for (int j = 0; j < 2; j++) //swap a few cities
+           {  for (int j = 0; j < 2; j++) //swap a few cities
               {  swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
-              }
-              children[i].evaluateDistance(distMatrix);
-              if (old.distance < children[i].distance)
-              {   children[i] = old;
               }
            }
        }
@@ -195,13 +229,15 @@ calculatedpath geneticTSP(vector<city> &cities)
             cout << " WTF " << endl;
        }
        
-     /* 5.)  POPULATE the new population by replacing poor half of the current population with newly created children */
-      copy(children.begin(), children.end(), population.begin() + (int)(population.size()-children.size()));
+     /* 5.)  POPULATE the new population by having the top half as the best selected parents, and the bottom half as the children of those parents */
+      copy(bestpop.begin(), bestpop.end(), population.begin());
+      copy(children.begin(), children.end(), population.begin() + (int)(bestpop.size()));
+      
+
 
       //onto the next generation...
     }
-    
- 
+
     //finished algorithm.  sort to find path with lowest distance (lazy)
     #pragma omp parallel for
     for (int i = 0; i < population.size(); i++)
