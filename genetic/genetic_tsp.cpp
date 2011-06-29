@@ -14,8 +14,8 @@
 using namespace std;
 
 //define these as user input later if necessary
-int population_size = 10000; //population should always be an even number
-int generations = 1000;
+int population_size = 20000; //population should always be an even number
+int generations = 300;
 double mutation_likelihood = 0.1;
 
 //tournament selection
@@ -181,7 +181,7 @@ calculatedpath geneticTSP(vector<city> &cities)
 
     //calculate all of the distances for the initial population first.
     #pragma omp parallel for
-    for (unsigned i = 0; i < population.size(); i++)
+    for (int i = 0; i < population.size(); i++)
     {   population[i].evaluateDistance(distMatrix);
     }
     
@@ -213,7 +213,7 @@ calculatedpath geneticTSP(vector<city> &cities)
           {  curTournament[i] = population[rand()%population.size()];
           }
           sort(curTournament.begin(), curTournament.end());
-          for (unsigned i = 0; i < tournamentSize; i++)
+          for (int i = 0; i < tournamentSize; i++)
           {   if (rand()%10000 < (double)(tournamentProb*pow((double)(1-tournamentProb),i)*10000))
               {  bestpop[numSelected] = curTournament[i];
                  numSelected++;
