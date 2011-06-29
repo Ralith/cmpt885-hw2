@@ -18,7 +18,7 @@
 
 using namespace std;
 
-int iterations = 2000;
+int iterations = 500;
 int numAnts = 100;
 
 double BASE_PHEROMONE = 1;
@@ -190,7 +190,6 @@ int main(int argc, char **argv) {
 	    }
     }
     antTSP(cities);
-      cout << "WTF" << endl;
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i)
 	  cout << "City " << (*i).index << ":" << *i << endl;
       
@@ -219,31 +218,29 @@ void antTSP(vector<city> cities)
     double bestPathDistanceSoFar=HUGE_VAL;
     for (int iteration = 1; iteration <= iterations; iteration++)
     {   
-        //a.)  distribute ants evenly amongst the graph
+        //a.)  distribute ants evenly amongst the graph.  randomly choose a city with equal probability and assign the ant's first city in the tour to it
         #pragma omp parallel for
         for (int i = 0; i < numAnts; i++)
-        {   //randomly choose a city with equal probability and assign the ant's first city in the tour to it
-            int randCity = rand()%numCities;
-            ants[i] = ant(numCities, randCity);
+        {   ants[i] = ant(numCities, rand()%numCities);
         }
 
         //b.) get all ants to perform a tour.  this corresponds to telling them to go to a nextCity() NUMCITIES-1 times (since a tour == NUMCITIES, and we already chose the first city for them)
         for (int i = 0; i < numCities-1; i++)
-        {   //parallelize the ants (they work independently)
+        {   //parallelize the ants (they create their own tours independently)
             #pragma omp parallel for
             for (int antNum = 0; antNum < numAnts; antNum++)
             {   chooseNextCity(ants[antNum], numCities, pheromMatrix, distMatrix);
             }
         }
 
-        //c.)  calculate distance travelled for each ant's tour and distribute pheromone across the tour (amount inversly proportional to distance of tour)
+        //c.)  distribute pheromone across the tour (amount deposited = inversely proportional to distance of tour)
         /***** THIS HAS A CRITICAL SECTION */
         #pragma omp parallel for
         for (int i = 0; i < numAnts; i++)
         {   intensifyPheromoneTrails(ants[i], numCities, pheromMatrix);
         }
 
-        //d.)  evaporate pheromone trails for all edges in the graph
+        //d.)  evaporate pheromone trails for all edges in the graph since it's the end of an iteration
         #pragma omp parallel for
         for (int i = 0; i < numCities; i++)
         {   for (int j = 0; j < numCities; j++)
@@ -253,8 +250,7 @@ void antTSP(vector<city> cities)
             }
         }
 
-        //d.)  finally, find the best path found during this iteration by going through the pheromone trail.
-        //get path with the best pheromone.  start at first city
+        //d.)  finally, find the best path from this iteration by going through the pheromone trail.  start at first city
         vector<int> bestPath(numCities);
         vector<bool> visited(numCities);
         for (int i = 0; i < numCities; i++)
@@ -306,16 +302,17 @@ void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **
 
    //go through all cities.  calculate probability for taking path to next city, and roll 'dice' to see if we should take it.  we try this 10 times, and if we still don't have a result, just choose the path with the highest probability (to prevent deadlocks)
    double bestProb = -1;
-   double prob = 0;
    int bestCity = -1;
+
    int nextCity = -1;
    bool foundCity = false;
 
    for (int tries = 0; tries < 5; tries++)
    {  for (int to = 0; to < numCities; to++)
       {  if (curAnt.visitedCities[to] == false) //only consider cities for which we haven't visited yet...
-         {  if (denominator == 0) //resolve divide by zero problem
-               prob = 1;
+         {  double prob = 0.0;
+            if (denominator == 0) //resolve divide by zero problem
+               prob = 1.0;
             else
                prob = (pow(pheromMatrix[from][to],alpha) * pow(1.0 / distMatrix[from][to], beta)) / denominator;
                 
@@ -336,13 +333,13 @@ void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **
    
    nextCity = bestCity;
 
-   curAnt.tourIndex = curAnt.tourIndex + 1;
+   curAnt.tourIndex+= 1;
    curAnt.tour[curAnt.tourIndex] = nextCity;
-   curAnt.tourLength = curAnt.tourLength + distMatrix[from][nextCity];
+   curAnt.tourLength+= distMatrix[from][nextCity];
    curAnt.visitedCities[nextCity] = true;
 
    if (curAnt.tourIndex == numCities-1) //i.e. we're at the end of the tour, so update the last edge anyways
-   {   curAnt.tourLength = curAnt.tourLength + distMatrix[curAnt.tour[numCities-1]][curAnt.tour[0]];
+   {   curAnt.tourLength+= distMatrix[curAnt.tour[numCities-1]][curAnt.tour[0]];
    }
 }
 
