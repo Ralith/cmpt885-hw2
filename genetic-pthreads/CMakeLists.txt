@@ -1,5 +1,6 @@
 add_executable(genetic-p
   genetic_tsp.cpp
+  Threadpool.cpp
   )
 
 find_library(M_LIB m)

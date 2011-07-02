@@ -9,7 +9,8 @@
 #include <cstdlib>
 #include <cstring>
 #include "time.h"
-#include "omp.h"
+
+#include "Threadpool.h"
 
 using namespace std;
 
@@ -57,10 +58,9 @@ struct calculatedpath {
 };
 
 
-calculatedpath geneticTSP(vector<city> &cities);
-double** genDistMatrix(const vector<city> &cities);
-void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities);
-void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix);
+calculatedpath geneticTSP(vector<city> &cities, Threadpool &p);
+double** genDistMatrix(const vector<city> &cities, Threadpool &p);
+void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities, Threadpool &p);
 
 ostream& operator<<(ostream& os, const city& c) {
   os << c.name << " (" << c.x << ", " << c.y << ")";
@@ -92,16 +92,14 @@ int main(int argc, char **argv) {
   if(argc == 3) {
     path = argv[2];
     cores = atoi(argv[1]);
-  } else if(argc == 2) {
-    path = argv[1];
   } else {
-    cerr << "Usage: " << argv[0] << " [threads] <datafile>" << endl;
+    cerr << "Usage: " << argv[0] << " <threads> <datafile>" << endl;
     return 1;
   }
-  cores = cores ? cores : omp_get_num_procs();
-  omp_set_num_threads(cores);
   cout << "Number of threads: " << cores << endl;
   cout << "Data file: " << path << endl;
+
+  Threadpool p(cores);
 
   srand ( time(NULL) );
 
@@ -133,7 +131,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    geneticTSP(cities);
+    geneticTSP(cities, p);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
       cout << "City " << (*i).index << ":" << *i << endl;
     }
@@ -156,7 +154,7 @@ int main(int argc, char **argv) {
 	  return 5;
 	}
       }
-      geneticTSP(cities);
+    geneticTSP(cities, p);
       for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
 	cout << "City " << (*i).index << ":" << *i << endl;
       }
@@ -165,25 +163,126 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+class DistanceEvaluator : public Task {
+protected:
+  calculatedpath *path;
+  double **distMatrix;
+  bool lazy;
+  
+public:
+  DistanceEvaluator() {};
+  DistanceEvaluator(calculatedpath *p, double **d, bool l=false) : path(p), distMatrix(d), lazy(l) {}
+  virtual void run() {
+    if(!lazy || path->distance == 0) {
+      path->evaluateDistance(distMatrix);
+    }
+  }
+};
+
+class Mutator : public Task {
+protected:
+  calculatedpath *c;
+  
+public:
+  Mutator() {};
+  Mutator(calculatedpath *c) : c(c) {};
+  virtual void run() {
+    if(rand()%100 < (mutation_likelihood*100)) { //random number from 0-99.  accurate to 2 decimal places
+      for(int j = 0; j < 5; j++) { //swap a few cities
+	swap(c->path[rand()%c->path.size()], c->path[rand()%c->path.size()]);
+      }
+    }
+  }
+};
+
+
+/* Crossover function to generate a new child from two parents.
+   Use modified Grefenstette Greedy Crossover: 
+      Child path initially only has parent1's first city.  Then:
+         for each city x in Child's path:
+            select next cities a,b from x in both parents' paths.
+                a.)  choose closest a,b, and if city DNE in Child's path then extend path with it
+                b.)  o/w, if one city already exists in Child's path, choose other one that DNE and extend with it
+                c.)  o/w, if both cities exist in Child's path, choose random unchosen city and extend with it
+*/
+class Crossover : public Task {
+protected:
+  calculatedpath *child;
+  const calculatedpath *parent1, *parent2;
+  double **distMatrix;
+public:
+  Crossover() {};
+  Crossover(calculatedpath *child, const calculatedpath *parent1, const calculatedpath *parent2, double **distMatrix) :
+    child(child), parent1(parent1), parent2(parent2), distMatrix(distMatrix) {};
+  virtual void run() {
+    vector<int> path(parent1->path.size());
+     
+    //hash map to quickly check if a city already exists in child's path
+    vector<bool> hasUsedCity(path.size());
+    for (unsigned i=0; i < hasUsedCity.size(); i++) {
+      hasUsedCity[i] = false;
+    }
+     
+    //initially, child takes first city of parent
+    path[0] = parent1->path[0];
+    hasUsedCity[parent1->path[0]] = true;
+     
+    for (unsigned i = 0; i < path.size()-1; i++) {
+      //find candidate cities connected to current city in child         
+      int parent1Index = distance(parent1->path.begin(), find(parent1->path.begin(), parent1->path.end(), path[i]));
+      int nextCity1 = parent1->path[(parent1Index+1)%parent1->path.size()]; //wraparound in-case
+      int parent2Index = distance(parent2->path.begin(), find(parent2->path.begin(), parent2->path.end(), path[i]));
+      int nextCity2 = parent2->path[(parent2Index+1)%parent2->path.size()]; //wraparound in-case
+         
+      //see which candidate city has a shorter distance, simple lookup
+      int closerCity = (distMatrix[path[i]][nextCity1] <= distMatrix[path[i]][nextCity2])?nextCity1:nextCity2;
+      int fartherCity = (distMatrix[path[i]][nextCity1] <= distMatrix[path[i]][nextCity2])?nextCity2:nextCity1;
+         
+      //now we try setting the next city in the child to the closer city, if possible
+      if(!hasUsedCity[closerCity]) { //haven't used it yet, so set it as next
+	path[i+1] = closerCity;
+	hasUsedCity[closerCity] = true;
+      }
+      else if (!hasUsedCity[fartherCity]) { //closerCity has been used, use other
+	path[i+1] = fartherCity;
+	hasUsedCity[fartherCity] = true;
+      } else {//both cities have been used, randomly choose one that hasn't then
+	vector<int> availCities;
+	for (unsigned x = 0; x < path.size(); x++) {
+	  if (!hasUsedCity[x])
+	    availCities.push_back(x);
+	}
+	int randCity = availCities[rand()%availCities.size()];
+	path[i+1] = randCity;
+	hasUsedCity[randCity] = true;
+      }
+    }
+    *child = calculatedpath(path); //encapsulate newly created path into our data structure for easier dist calc/comparison later.
+  }
+};
+
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since during each generation, evaluating distances for each candidate path is independent of other paths.  
 //similarly, crossing over to generate new children is also independent from child to child.
-calculatedpath geneticTSP(vector<city> &cities)
+calculatedpath geneticTSP(vector<city> &cities, Threadpool &p)
 {
   cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
-    double** distMatrix = genDistMatrix(cities);
+  double** distMatrix = genDistMatrix(cities, p);
     
     //from here on:  refer to paths as encoded indices of cities only (optimization) -- don't need x, y, or names anymore
     //generate an initial population (i.e. paths) to seed the genetic algorithm
     vector<calculatedpath> population(population_size);
-    genInitialPopulation(population, cities.size());
+    genInitialPopulation(population, cities.size(), p);
 
     //calculate all of the distances for the initial population first.
-    #pragma omp parallel for
-    for (int i = 0; i < population.size(); i++)
-    {   population[i].evaluateDistance(distMatrix);
+    DistanceEvaluator *des = new DistanceEvaluator[population.size()];
+    for(unsigned i = 0; i < population.size(); i++) {
+      des[i] = DistanceEvaluator(&population[i], distMatrix);
+      p.addTask(&des[i]);
     }
+    p.join();
+    delete[] des;
     
     
     //"evolve" the seeded population for a specified number of generations.
@@ -225,33 +324,34 @@ calculatedpath geneticTSP(vector<city> &cities)
      
  /***** 2.)  CROSSOVER the best half of the population to reproduce children */
        vector<calculatedpath> children(bestpop.size()); //every two parent pairs creates one child, i.e. #children == #bestpop, and #children + #bestpop == population
-       #pragma omp parallel for
-       for (int i = 0; i < children.size(); i++)
-       {  crossover(children[i], bestpop[i], bestpop[(i+1)%bestpop.size()], distMatrix); //mod for wraparound
+       Crossover *cs = new Crossover[children.size()];
+       for (int i = 0; i < children.size(); i++) {
+	 cs[i] = Crossover(&children[i], &bestpop[i], &bestpop[(i+1)%bestpop.size()], distMatrix); //mod for wraparound
+	 p.addTask(&cs[i]);
        }
+       p.join();
+       delete[] cs;
        
 
  /***** 3.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path, and keeping it only if the path is an improvement. */
-       #pragma omp parallel for
-       for (int i = 0; i < children.size(); i++)
-       {   //mutate
-           if (rand()%100 < (mutation_likelihood*100)) //random number from 0-99.  accurate to 2 decimal places
-           {  for (int j = 0; j < 5; j++) //swap a few cities
-              {  swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
-              }
-           }
+       Mutator *ms = new Mutator[children.size()];
+       for (int i = 0; i < children.size(); i++) {   //mutate
+	 ms[i] = Mutator(&children[i]);
+	 p.addTask(&ms[i]);
        }
+       p.join();
+       delete[] ms;
 
  /***** 4.)  EVALUATE the distance for each newly created child
              Can easily parallelize this */
-       #pragma omp parallel for
-       for (int i = 0; i < children.size(); i++)
-       {  //only compute distances if we haven't done so yet -- this is an optimization step since the top half of the population's distances will have been computed already
-          if (children[i].distance == 0)
-            children[i].evaluateDistance(distMatrix);
-          else
-            cout << " WTF " << endl;
+       des = new DistanceEvaluator[children.size()];
+       for(int i = 0; i < children.size(); i++) {
+	 //only compute distances if we haven't done so yet -- this is an optimization step since the top half of the population's distances will have been computed already
+	 des[i] = DistanceEvaluator(&children[i], distMatrix, true);
+	 p.addTask(&des[i]);
        }
+       p.join();
+       delete[] des;
        
  /***** 5.)  POPULATE the new population by having the top half as the best selected parents, and the bottom half as the children of those parents */
       copy(bestpop.begin(), bestpop.end(), population.begin());
@@ -263,98 +363,74 @@ calculatedpath geneticTSP(vector<city> &cities)
     }
 
     //finished algorithm.  sort to find path with lowest distance (lazy)
-    #pragma omp parallel for
-    for (int i = 0; i < population.size(); i++)
-       population[i].evaluateDistance(distMatrix);
+    des = new DistanceEvaluator[population.size()];
+    for(unsigned i = 0; i < population.size(); i++) {
+      des[i] = DistanceEvaluator(&population[i], distMatrix);
+      p.addTask(&des[i]);
+    }
+    p.join();
+    delete[] des;
     sort(population.begin(), population.end());
     
     return population[0];
 }
 
-/* Crossover function to generate a new child from two parents.
-   Use modified Grefenstette Greedy Crossover: 
-      Child path initially only has parent1's first city.  Then:
-         for each city x in Child's path:
-            select next cities a,b from x in both parents' paths.
-                a.)  choose closest a,b, and if city DNE in Child's path then extend path with it
-                b.)  o/w, if one city already exists in Child's path, choose other one that DNE and extend with it
-                c.)  o/w, if both cities exist in Child's path, choose random unchosen city and extend with it
-*/
-void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix)
-{    vector<int> path(parent1.path.size());
-     
-     //hash map to quickly check if a city already exists in child's path
-	 vector<bool> hasUsedCity(path.size());
-     for (unsigned i=0; i < hasUsedCity.size(); i++)
-     {   hasUsedCity[i] = false;
-     }
-     
-     //initially, child takes first city of parent
-     path[0] = parent1.path[0];
-     hasUsedCity[parent1.path[0]] = true;
-     
-     for (unsigned i = 0; i < path.size()-1; i++)
-     {         
-         //find candidate cities connected to current city in child         
-         int parent1Index = distance(parent1.path.begin(), find(parent1.path.begin(), parent1.path.end(), path[i]));
-         int nextCity1 = parent1.path[(parent1Index+1)%parent1.path.size()]; //wraparound in-case
-         int parent2Index = distance(parent2.path.begin(), find(parent2.path.begin(), parent2.path.end(), path[i]));
-         int nextCity2 = parent2.path[(parent2Index+1)%parent2.path.size()]; //wraparound in-case
-         
-         //see which candidate city has a shorter distance, simple lookup
-         int closerCity = (distMatrix[path[i]][nextCity1] <= distMatrix[path[i]][nextCity2])?nextCity1:nextCity2;
-         int fartherCity = (distMatrix[path[i]][nextCity1] <= distMatrix[path[i]][nextCity2])?nextCity2:nextCity1;
-         
-         //now we try setting the next city in the child to the closer city, if possible
-         if (!hasUsedCity[closerCity]) //haven't used it yet, so set it as next
-         {  path[i+1] = closerCity;
-            hasUsedCity[closerCity] = true;
-         }
-         else if (!hasUsedCity[fartherCity]) //closerCity has been used, use other
-         {  path[i+1] = fartherCity;
-            hasUsedCity[fartherCity] = true;
-         } //both cities have been used, randomly choose one that hasn't then
-         else
-         {   vector<int> availCities;
-             for (unsigned x = 0; x < path.size(); x++)
-             {   if (!hasUsedCity[x])
-                    availCities.push_back(x);
-             }
-             int randCity = availCities[rand()%availCities.size()];
-             path[i+1] = randCity;
-             hasUsedCity[randCity] = true;
-         }
-     }     
-     child = calculatedpath(path); //encapsulate newly created path into our data structure for easier dist calc/comparison later.
-}
-     
 //helper func: each entry in the returned distance matrix corresponds to the distance between city(i,j)
-double** genDistMatrix(const vector<city> &cities)
-{   int numCities = cities.size();   
-    double** retDistMatrix = new double*[numCities];
-    
-    //can parallelize this if we want to using openMP (independent for)
-    #pragma omp parallel for
-    for (int i = 0; i < numCities; i++)
-    {   retDistMatrix[i] = new double[numCities];
-        //calculate distance from city i to all other cities:
-        for (int j = 0; j < numCities; j++)
-        {   retDistMatrix[i][j] = sqrt(pow(fabs(cities[i].x - cities[j].x),2) + pow(fabs(cities[i].y - cities[j].y),2));
-        }
+class MatrixGen : public Task {
+protected:
+  double **retDistMatrix;
+  size_t i;
+  const vector<city> *cities;
+public:
+  MatrixGen() {};
+  MatrixGen(double **retDistMatrix, size_t i, const vector<city> *cities) : retDistMatrix(retDistMatrix), i(i), cities(cities) {};
+  virtual void run() {
+    retDistMatrix[i] = new double[cities->size()];
+    //calculate distance from city i to all other cities:
+    for (int j = 0; j < cities->size(); j++) {
+      retDistMatrix[i][j] = sqrt(pow(fabs((*cities)[i].x - (*cities)[j].x),2) + pow(fabs((*cities)[i].y - (*cities)[j].y),2));
     }
+  }
+};
+double** genDistMatrix(const vector<city> &cities, Threadpool &p)
+{   int numCities = cities.size();
+    double** retDistMatrix = new double*[numCities];
+
+    MatrixGen *tasks = new MatrixGen[numCities];
+    for(size_t i = 0; i < numCities; i++) {
+      tasks[i] = MatrixGen(retDistMatrix, i, &cities);
+      p.addTask(&tasks[i]);
+    }
+    p.join();
+    delete[] tasks;
     return retDistMatrix;
 }
+
 //helper func:  generate an initial population (i.e. paths) to seed the genetic algorithm
-void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities)
+class PathGenerator : public Task {
+protected:
+  const vector<int> *unshuffledPath;
+  calculatedpath *ret;
+public:
+  PathGenerator() {};
+  PathGenerator(const vector<int> *u, calculatedpath *r) : unshuffledPath(u), ret(r) {};
+  virtual void run() {
+    vector<int> randPath = *unshuffledPath;
+    random_shuffle(randPath.begin(), randPath.end());
+    *ret = calculatedpath(randPath);
+  }
+};
+void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities, Threadpool &p)
 {   vector<int> unshuffledPath(numCities);
     for (unsigned i = 0; i < numCities; i++)
         unshuffledPath[i] = i;
-    
-    #pragma omp parallel for
-    for (int i = 0; i < retPop.size(); i++)
-    {   vector<int> randPath = unshuffledPath;
-        random_shuffle(randPath.begin(), randPath.end());
-        retPop[i] = calculatedpath(randPath);
+
+    PathGenerator *tasks = new PathGenerator[retPop.size()];
+    for (int i = 0; i < retPop.size(); i++) {
+      tasks[i] = PathGenerator(&unshuffledPath, &retPop[i]);
+      p.addTask(&tasks[i]);
     }
+    p.join();
+    delete[] tasks;
 }
         
