@@ -9,3 +9,5 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lgomp")
 add_definitions(-Wall -Wextra)
 
 add_subdirectory(genetic)
+add_subdirectory(genetic-pthreads)
+add_subdirectory(ant)
