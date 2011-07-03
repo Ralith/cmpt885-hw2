@@ -28,6 +28,7 @@ Threadpool::~Threadpool() {
     pthread_join(threads[i], 0);
   }
   delete[] threads;
+  sem_destroy(&sem);
 }
 
 void Threadpool::addTask(Task *t) {
