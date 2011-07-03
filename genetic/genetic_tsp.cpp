@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include "time.h"
+#include <time.h>
 #include "omp.h"
 
 using namespace std;
@@ -185,7 +185,8 @@ calculatedpath geneticTSP(vector<city> &cities)
     {   population[i].evaluateDistance(distMatrix);
     }
     
-    
+    struct timespec zero;
+    clock_gettime(CLOCK_MONOTONIC, &zero);
     //"evolve" the seeded population for a specified number of generations.
     for (int generation = 1; generation <= generations ; generation++)
     {
@@ -200,7 +201,11 @@ calculatedpath geneticTSP(vector<city> &cities)
              minIndex = i;
           }
        }
-       cout << "Best path in generation " << generation << ": " << population[minIndex] << endl;
+       struct timespec now;
+       clock_gettime(CLOCK_MONOTONIC, &now);
+       float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
+       cout << generation << "," << dt
+	    << "," << population[minIndex].distance << endl;
 
        //tournament elitist selection
        //http://en.wikipedia.org/wiki/Tournament_selection
