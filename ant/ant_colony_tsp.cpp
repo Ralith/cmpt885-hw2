@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include "time.h"
+#include <time.h>
 #include "omp.h"
 
 using namespace std;
@@ -219,8 +219,10 @@ void antTSP(vector<city> cities)
     
     vector<int> bestPathSoFar(numCities);
     double bestPathDistanceSoFar=HUGE_VAL;
+    struct timespec zero;
+    clock_gettime(CLOCK_MONOTONIC, &zero);
     for (int iteration = 1; iteration <= iterations; iteration++)
-    {   
+      {
         //cout << "a" << endl;
         //a.)  distribute ants evenly amongst the graph.  assign one ant to each city.
         #pragma omp parallel for
@@ -294,7 +296,11 @@ void antTSP(vector<city> cities)
            bestPathSoFar = bestPath;
         }
 
-        cout << "Best dist: " << bestPathDistanceSoFar << endl; //", Path:" << bestPath << endl;
+        struct timespec now;
+       clock_gettime(CLOCK_MONOTONIC, &now);
+       float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
+       cout << iteration << "," << dt
+	    << "," << bestPathDistanceSoFar << endl;
     }
 }
 
