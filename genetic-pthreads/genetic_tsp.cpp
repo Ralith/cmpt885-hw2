@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
-#include "time.h"
+#include <time.h>
 
 #include "Threadpool.h"
 
@@ -68,7 +68,7 @@ ostream& operator<<(ostream& os, const city& c) {
 }
 
 ostream& operator<<(ostream& os, const calculatedpath& p) {
-  os << "Path dist:" << p.distance; // ", Path: (";
+  os << "Path dist: " << p.distance; // ", Path: (";
   /*for (unsigned i = 0; i < p.path.size(); i++)
   {  if (i != p.path.size()-1)
        os << p.path[i] << ",";
@@ -266,6 +266,8 @@ public:
 //similarly, crossing over to generate new children is also independent from child to child.
 calculatedpath geneticTSP(vector<city> &cities, Threadpool &p)
 {
+  struct timespec zero;
+  clock_gettime(CLOCK_MONOTONIC, &zero);
   cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
   double** distMatrix = genDistMatrix(cities, p);
@@ -299,7 +301,11 @@ calculatedpath geneticTSP(vector<city> &cities, Threadpool &p)
              minIndex = i;
           }
        }
-       cout << "Best path in generation " << generation << ": " << population[minIndex] << endl;
+       struct timespec now;
+       clock_gettime(CLOCK_MONOTONIC, &now);
+       float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
+       cout << generation << "," << dt
+	    << "," << population[minIndex].distance << endl;
 
        //tournament elitist selection
        //http://en.wikipedia.org/wiki/Tournament_selection
