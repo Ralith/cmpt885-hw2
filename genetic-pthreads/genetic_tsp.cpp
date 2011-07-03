@@ -266,8 +266,6 @@ public:
 //similarly, crossing over to generate new children is also independent from child to child.
 calculatedpath geneticTSP(vector<city> &cities, Threadpool &p)
 {
-  struct timespec zero;
-  clock_gettime(CLOCK_MONOTONIC, &zero);
   cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
   double** distMatrix = genDistMatrix(cities, p);
@@ -286,7 +284,8 @@ calculatedpath geneticTSP(vector<city> &cities, Threadpool &p)
     p.join();
     delete[] des;
     
-    
+    struct timespec zero;
+    clock_gettime(CLOCK_MONOTONIC, &zero);
     //"evolve" the seeded population for a specified number of generations.
     for (int generation = 1; generation <= generations ; generation++)
     {
