@@ -57,7 +57,7 @@ struct calculatedpath {
 };
 
 
-calculatedpath geneticTSP(vector<city> &cities);
+calculatedpath geneticTSP(vector<city> &cities, unsigned timeout);
 double** genDistMatrix(const vector<city> &cities);
 void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities);
 void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix);
@@ -88,14 +88,16 @@ istream& operator>>(istream& is, city &c) {
 
 int main(int argc, char **argv) {
   string path;
-  unsigned cores = 0;
-  if(argc == 3) {
-    path = argv[2];
+  unsigned cores = 0, timeout;
+  if(argc == 4) {
+    path = argv[3];
+    timeout = atoi(argv[2]);
     cores = atoi(argv[1]);
-  } else if(argc == 2) {
-    path = argv[1];
+  } else if(argc == 3) {
+    timeout = atoi(argv[1]);
+    path = argv[2];
   } else {
-    cerr << "Usage: " << argv[0] << " [threads] <datafile>" << endl;
+    cerr << "Usage: " << argv[0] << " [threads] <timeout> <datafile>" << endl;
     return 1;
   }
   cores = cores ? cores : omp_get_num_procs();
@@ -133,7 +135,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    geneticTSP(cities);
+    geneticTSP(cities, timeout);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
       cout << "City " << (*i).index << ":" << *i << endl;
     }
@@ -156,7 +158,7 @@ int main(int argc, char **argv) {
 	  return 5;
 	}
       }
-      geneticTSP(cities);
+    geneticTSP(cities, timeout);
       for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
 	cout << "City " << (*i).index << ":" << *i << endl;
       }
@@ -168,7 +170,7 @@ int main(int argc, char **argv) {
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since during each generation, evaluating distances for each candidate path is independent of other paths.  
 //similarly, crossing over to generate new children is also independent from child to child.
-calculatedpath geneticTSP(vector<city> &cities)
+calculatedpath geneticTSP(vector<city> &cities, unsigned timeout)
 {
   cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
@@ -188,7 +190,7 @@ calculatedpath geneticTSP(vector<city> &cities)
     struct timespec zero;
     clock_gettime(CLOCK_MONOTONIC, &zero);
     //"evolve" the seeded population for a specified number of generations.
-    for (int generation = 1; generation <= generations ; generation++)
+    for (unsigned generation = 1; true; generation++)
     {
  /***** 1.)  SELECT only the best half of the population for 'mating' */
 
@@ -206,6 +208,10 @@ calculatedpath geneticTSP(vector<city> &cities)
        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
        cout << generation << "," << dt
 	    << "," << population[minIndex].distance << endl;
+
+       if(dt > timeout) {
+	 exit(0);
+       }
 
        //tournament elitist selection
        //http://en.wikipedia.org/wiki/Tournament_selection

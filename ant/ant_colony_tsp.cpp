@@ -80,7 +80,7 @@ double** genDistMatrix(const vector<city> cities);
 double** genPheromMatrix(int numCities);
 void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix);
 void intensifyPheromoneTrails(ant &curAnt, int numCities, double **pheromMatrix);
-void antTSP(vector<city> cities);
+void antTSP(vector<city> cities, unsigned timeout);
 double genRandom(); //generate random double between 0 and 1.
 
 ostream& operator<<(ostream& os, const city& c) {
@@ -119,14 +119,16 @@ istream& operator>>(istream& is, city &c) {
 
 int main(int argc, char **argv) {
   string path;
-  unsigned cores = 0;
-  if(argc == 3) {
-    path = argv[2];
+  unsigned cores = 0, timeout;
+  if(argc == 4) {
+    path = argv[3];
+    timeout = atoi(argv[2]);
     cores = atoi(argv[1]);
-  } else if(argc == 2) {
-    path = argv[1];
+  } else if(argc == 3) {
+    timeout = atoi(argv[1]);
+    path = argv[2];
   } else {
-    cerr << "Usage: " << argv[0] << " [threads] <datafile>" << endl;
+    cerr << "Usage: " << argv[0] << " [threads] <timeout> <datafile>" << endl;
     return 1;
   }
   cores = cores ? cores : omp_get_num_procs();
@@ -164,7 +166,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    antTSP(cities);
+    antTSP(cities, timeout);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
       cout << "City " << (*i).index << ":" << *i << endl;
     }
@@ -190,7 +192,7 @@ int main(int argc, char **argv) {
 	      return 5;
 	    }
     }
-    antTSP(cities);
+     antTSP(cities, timeout);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i)
 	  cout << "City " << (*i).index << ":" << *i << endl;
       
@@ -201,7 +203,7 @@ int main(int argc, char **argv) {
 
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since each ant works independently.  
-void antTSP(vector<city> cities)
+void antTSP(vector<city> cities, unsigned timeout)
 {   cout << "Got " << cities.size() << " cities.  Setting one ant per city." << endl;
     
     
@@ -221,7 +223,7 @@ void antTSP(vector<city> cities)
     double bestPathDistanceSoFar=HUGE_VAL;
     struct timespec zero;
     clock_gettime(CLOCK_MONOTONIC, &zero);
-    for (int iteration = 1; iteration <= iterations; iteration++)
+    for (int iteration = 1; true; ++iteration)
       {
         //cout << "a" << endl;
         //a.)  distribute ants evenly amongst the graph.  assign one ant to each city.
@@ -296,11 +298,14 @@ void antTSP(vector<city> cities)
            bestPathSoFar = bestPath;
         }
 
-        struct timespec now;
-       clock_gettime(CLOCK_MONOTONIC, &now);
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
        cout << iteration << "," << dt
 	    << "," << bestPathDistanceSoFar << endl;
+       if(dt > timeout) {
+	 exit(0);
+       }
     }
 }
 
