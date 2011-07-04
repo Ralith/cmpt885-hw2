@@ -78,9 +78,9 @@ struct city {
 
 double** genDistMatrix(const vector<city> &cities);
 double** genPheromMatrix(int numCities);
-void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix, struct drand48_data *seeds);
+void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix, struct drand48_data *randstate);
 void intensifyPheromoneTrails(ant &curAnt, int numCities, double **pheromMatrix);
-void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds);
+void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *randstate);
 
 ostream& operator<<(ostream& os, const city& c) {
   os << c.name << " (" << c.x << ", " << c.y << ")";
@@ -136,9 +136,9 @@ int main(int argc, char **argv) {
   cout << "Data file: " << path << endl;
 
   time_t seedbase = time(NULL);
-  struct drand48_data *seeds = new struct drand48_data[cores];
+  struct drand48_data *randstate = new struct drand48_data[cores];
   for(unsigned i = 0; i < cores; ++i) {
-    srand48_r(seedbase+i, &seeds[i]);
+    srand48_r(seedbase+i, &randstate[i]);
   }
 
   ifstream datafile;
@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    antTSP(cities, timeout, seeds);
+    antTSP(cities, timeout, randstate);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
       cout << "City " << (*i).index << ":" << *i << endl;
     }
@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
 	      return 5;
 	    }
     }
-     antTSP(cities, timeout, seeds);
+     antTSP(cities, timeout, randstate);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i)
 	  cout << "City " << (*i).index << ":" << *i << endl;
       
@@ -206,7 +206,7 @@ int main(int argc, char **argv) {
 
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since each ant works independently.  
-void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds)
+void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *randstate)
 {   cout << "Got " << cities.size() << " cities.  Setting one ant per city." << endl;
     
     
@@ -250,7 +250,7 @@ void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds)
         {   //parallelize the ants (they create their own tours independently)
             #pragma omp parallel for
             for (int antNum = 0; antNum < numAnts; antNum++)
-	        {   chooseNextCity(ants[antNum], numCities, pheromMatrix, distMatrix, seeds);
+	      {   chooseNextCity(ants[antNum], numCities, pheromMatrix, distMatrix, randstate);
             }
             #pragma omp barrier
         }
@@ -332,7 +332,7 @@ void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds)
     }
 }
 
-void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix, struct drand48_data *seeds)
+void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix, struct drand48_data *randstate)
 {  int from = curAnt.tour[curAnt.tourIndex];
    double denominator = 0.0;
 
@@ -368,7 +368,7 @@ void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **
                bestCity = to;
             }
 	    double rand;
-	    drand48_r(&seeds[omp_get_thread_num()], &rand);
+	    drand48_r(&randstate[omp_get_thread_num()], &rand);
             if (rand <= prob)
             {  foundCity = true;
                bestCity = to;
