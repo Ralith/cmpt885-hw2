@@ -225,15 +225,15 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned timeout, struct drand48
        while (numSelected != population.size()/2)
        {  vector<calculatedpath> curTournament(tournamentSize);
 	 long lrand;
-	 lrand48_r(&randstate[omp_get_thread_num()], &lrand);
-          for (unsigned i = 0; i < tournamentSize; i++)
-          {  curTournament[i] = population[lrand%population.size()];
-          }
+	 for (unsigned i = 0; i < tournamentSize; i++) {
+	   lrand48_r(&randstate[omp_get_thread_num()], &lrand); 
+	   curTournament[i] = population[lrand%population.size()];
+	 }
           sort(curTournament.begin(), curTournament.end());
 	  double drand;
-	  drand48_r(&randstate[omp_get_thread_num()], &drand);
-          for (int i = 0; i < tournamentSize; i++)
-          {   if (drand < (double)(tournamentProb*pow((double)(1-tournamentProb),i)))
+          for (int i = 0; i < tournamentSize; i++) {
+	    drand48_r(&randstate[omp_get_thread_num()], &drand);
+	    if (drand < (double)(tournamentProb*pow((double)(1-tournamentProb),i)))
               {  bestpop[numSelected] = curTournament[i];
                  numSelected++;
                  if (numSelected == population.size()/2)
