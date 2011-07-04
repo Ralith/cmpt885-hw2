@@ -76,12 +76,11 @@ struct city {
   int index;
 };
 
-double** genDistMatrix(const vector<city> cities);
+double** genDistMatrix(const vector<city> &cities);
 double** genPheromMatrix(int numCities);
-void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix);
+void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix, struct drand48_data *seeds);
 void intensifyPheromoneTrails(ant &curAnt, int numCities, double **pheromMatrix);
-void antTSP(vector<city> cities, unsigned timeout);
-double genRandom(); //generate random double between 0 and 1.
+void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds);
 
 ostream& operator<<(ostream& os, const city& c) {
   os << c.name << " (" << c.x << ", " << c.y << ")";
@@ -136,7 +135,11 @@ int main(int argc, char **argv) {
   cout << "Number of threads: " << cores << endl;
   cout << "Data file: " << path << endl;
 
-  srand ( time(NULL) );
+  time_t seedbase = time(NULL);
+  struct drand48_data *seeds = new struct drand48_data[cores];
+  for(unsigned i = 0; i < cores; ++i) {
+    srand48_r(seedbase+i, &seeds[i]);
+  }
 
   ifstream datafile;
   datafile.open(path.c_str(), ios::in);
@@ -166,7 +169,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    antTSP(cities, timeout);
+    antTSP(cities, timeout, seeds);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
       cout << "City " << (*i).index << ":" << *i << endl;
     }
@@ -192,7 +195,7 @@ int main(int argc, char **argv) {
 	      return 5;
 	    }
     }
-     antTSP(cities, timeout);
+     antTSP(cities, timeout, seeds);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i)
 	  cout << "City " << (*i).index << ":" << *i << endl;
       
@@ -203,7 +206,7 @@ int main(int argc, char **argv) {
 
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since each ant works independently.  
-void antTSP(vector<city> cities, unsigned timeout)
+void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds)
 {   cout << "Got " << cities.size() << " cities.  Setting one ant per city." << endl;
     
     
@@ -244,7 +247,7 @@ void antTSP(vector<city> cities, unsigned timeout)
         {   //parallelize the ants (they create their own tours independently)
             #pragma omp parallel for
             for (int antNum = 0; antNum < numAnts; antNum++)
-            {   chooseNextCity(ants[antNum], numCities, pheromMatrix, distMatrix);
+	      {   chooseNextCity(ants[antNum], numCities, pheromMatrix, distMatrix, seeds);
             }
             #pragma omp barrier
         }
@@ -326,7 +329,7 @@ void antTSP(vector<city> cities, unsigned timeout)
     }
 }
 
-void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix)
+void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix, struct drand48_data *seeds)
 {  int from = curAnt.tour[curAnt.tourIndex];
    double denominator = 0.0;
 
@@ -361,7 +364,9 @@ void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **
             {  bestProb = prob;
                bestCity = to;
             }
-            if (genRandom() <= prob)
+	    double rand;
+	    drand48_r(&seeds[omp_get_thread_num()], &rand);
+            if (rand <= prob)
             {  foundCity = true;
                bestCity = to;
                break;
@@ -420,7 +425,7 @@ void intensifyPheromoneTrails(ant &curAnt, int numCities, double **pheromMatrix)
 }
 
 //helper func: each entry in the returned distance matrix corresponds to the distance between city(i,j)
-double** genDistMatrix(vector <city> cities)
+double** genDistMatrix(const vector <city> &cities)
 {   int numCities = cities.size();   
     double** retDistMatrix = new double*[numCities];
     
@@ -446,7 +451,3 @@ double** genPheromMatrix(int numCities)
     }
     return pheromMatrix;
 }
-double genRandom()
-{   return (double)rand()/(double)RAND_MAX;
-}
-        
