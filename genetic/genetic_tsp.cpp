@@ -57,10 +57,10 @@ struct calculatedpath {
 };
 
 
-calculatedpath geneticTSP(vector<city> &cities, unsigned timeout);
+calculatedpath geneticTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds);
 double** genDistMatrix(const vector<city> &cities);
 void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities);
-void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix);
+void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix, struct drand48_data *seeds);
 
 ostream& operator<<(ostream& os, const city& c) {
   os << c.name << " (" << c.x << ", " << c.y << ")";
@@ -105,7 +105,11 @@ int main(int argc, char **argv) {
   cout << "Number of threads: " << cores << endl;
   cout << "Data file: " << path << endl;
 
-  srand ( time(NULL) );
+  time_t seedbase = time(NULL);
+  struct drand48_data *seeds = new struct drand48_data[cores];
+  for(unsigned i = 0; i < cores; ++i) {
+    srand48_r(seedbase+i, &seeds[i]);
+  }
 
   ifstream datafile;
   datafile.open(path.c_str(), ios::in);
@@ -135,7 +139,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    geneticTSP(cities, timeout);
+    geneticTSP(cities, timeout, seeds);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
       cout << "City " << (*i).index << ":" << *i << endl;
     }
@@ -158,7 +162,7 @@ int main(int argc, char **argv) {
 	  return 5;
 	}
       }
-    geneticTSP(cities, timeout);
+    geneticTSP(cities, timeout, seeds);
       for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
 	cout << "City " << (*i).index << ":" << *i << endl;
       }
@@ -170,7 +174,7 @@ int main(int argc, char **argv) {
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since during each generation, evaluating distances for each candidate path is independent of other paths.  
 //similarly, crossing over to generate new children is also independent from child to child.
-calculatedpath geneticTSP(vector<city> &cities, unsigned timeout)
+calculatedpath geneticTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds)
 {
   cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
@@ -220,12 +224,16 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned timeout)
        int numSelected = 0;
        while (numSelected != population.size()/2)
        {  vector<calculatedpath> curTournament(tournamentSize);
+	 long lrand;
+	 lrand48_r(&seeds[omp_get_thread_num()], &lrand);
           for (unsigned i = 0; i < tournamentSize; i++)
-          {  curTournament[i] = population[rand()%population.size()];
+          {  curTournament[i] = population[lrand%population.size()];
           }
           sort(curTournament.begin(), curTournament.end());
+	  double drand;
+	  drand48_r(&seeds[omp_get_thread_num()], &drand);
           for (int i = 0; i < tournamentSize; i++)
-          {   if (rand()%10000 < (double)(tournamentProb*pow((double)(1-tournamentProb),i)*10000))
+          {   if (drand < (double)(tournamentProb*pow((double)(1-tournamentProb),i)))
               {  bestpop[numSelected] = curTournament[i];
                  numSelected++;
                  if (numSelected == population.size()/2)
@@ -238,7 +246,7 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned timeout)
        vector<calculatedpath> children(bestpop.size()); //every two parent pairs creates one child, i.e. #children == #bestpop, and #children + #bestpop == population
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
-       {  crossover(children[i], bestpop[i], bestpop[(i+1)%bestpop.size()], distMatrix); //mod for wraparound
+	 {  crossover(children[i], bestpop[i], bestpop[(i+1)%bestpop.size()], distMatrix, seeds); //mod for wraparound
        }
        
 
@@ -246,9 +254,15 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned timeout)
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
        {   //mutate
-           if (rand()%100 < (mutation_likelihood*100)) //random number from 0-99.  accurate to 2 decimal places
+	 double rand;
+	 drand48_r(&seeds[omp_get_thread_num()], &rand);
+           if (rand < (mutation_likelihood))
            {  for (int j = 0; j < 5; j++) //swap a few cities
-              {  swap(children[i].path[rand()%children[i].path.size()], children[i].path[rand()%children[i].path.size()]);
+              {
+		long rand1, rand2;
+		lrand48_r(&seeds[omp_get_thread_num()], &rand1);
+		lrand48_r(&seeds[omp_get_thread_num()], &rand2);
+		swap(children[i].path[rand1%children[i].path.size()], children[i].path[rand2%children[i].path.size()]);
               }
            }
        }
@@ -291,7 +305,7 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned timeout)
                 b.)  o/w, if one city already exists in Child's path, choose other one that DNE and extend with it
                 c.)  o/w, if both cities exist in Child's path, choose random unchosen city and extend with it
 */
-void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix)
+void crossover(calculatedpath &child, const calculatedpath &parent1, const calculatedpath &parent2, double **distMatrix, struct drand48_data *seeds)
 {    vector<int> path(parent1.path.size());
      
      //hash map to quickly check if a city already exists in child's path
@@ -331,7 +345,9 @@ void crossover(calculatedpath &child, const calculatedpath &parent1, const calcu
              {   if (!hasUsedCity[x])
                     availCities.push_back(x);
              }
-             int randCity = availCities[rand()%availCities.size()];
+	     long rand;
+	     lrand48_r(&seeds[omp_get_thread_num()], &rand);
+             int randCity = availCities[rand%availCities.size()];
              path[i+1] = randCity;
              hasUsedCity[randCity] = true;
          }
