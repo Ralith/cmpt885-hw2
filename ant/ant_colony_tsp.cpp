@@ -225,12 +225,15 @@ void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds)
     vector<int> bestPathSoFar(numCities);
     double bestPathDistanceSoFar=HUGE_VAL;
 
-    //for POSIX:
-    //struct timespec zero;
-    //clock_gettime(CLOCK_MONOTONIC, &zero);
+    #ifndef _WIN32
+    struct timespec zero;
+    clock_gettime(CLOCK_MONOTONIC, &zero);
+    #endif
 
+    #ifdef _WIN32
     clock_t beginTicks = clock();
     clock_t endTicks = clock() + timeout*CLK_TCK;
+    #endif
     
     for (int iteration = 1; true; ++iteration)
       {
@@ -247,7 +250,7 @@ void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *seeds)
         {   //parallelize the ants (they create their own tours independently)
             #pragma omp parallel for
             for (int antNum = 0; antNum < numAnts; antNum++)
-	      {   chooseNextCity(ants[antNum], numCities, pheromMatrix, distMatrix, seeds);
+	        {   chooseNextCity(ants[antNum], numCities, pheromMatrix, distMatrix, seeds);
             }
             #pragma omp barrier
         }
