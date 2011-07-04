@@ -76,11 +76,11 @@ struct city {
   int index;
 };
 
-double** genDistMatrix(const vector<city> cities);
+double** genDistMatrix(const vector<city> &cities);
 double** genPheromMatrix(int numCities);
 void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix);
 void intensifyPheromoneTrails(ant &curAnt, int numCities, double **pheromMatrix);
-void antTSP(vector<city> cities, unsigned timeout);
+void antTSP(vector<city> &cities, unsigned timeout);
 double genRandom(); //generate random double between 0 and 1.
 
 ostream& operator<<(ostream& os, const city& c) {
@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
 
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since each ant works independently.  
-void antTSP(vector<city> cities, unsigned timeout)
+void antTSP(vector<city> &cities, unsigned timeout)
 {   cout << "Got " << cities.size() << " cities.  Setting one ant per city." << endl;
     
     
@@ -403,7 +403,7 @@ void intensifyPheromoneTrails(ant &curAnt, int numCities, double **pheromMatrix)
 }
 
 //helper func: each entry in the returned distance matrix corresponds to the distance between city(i,j)
-double** genDistMatrix(vector <city> cities)
+double** genDistMatrix(const vector <city> &cities)
 {   int numCities = cities.size();   
     double** retDistMatrix = new double*[numCities];
     
