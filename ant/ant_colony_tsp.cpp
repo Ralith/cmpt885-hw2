@@ -221,8 +221,14 @@ void antTSP(vector<city> cities, unsigned timeout)
     
     vector<int> bestPathSoFar(numCities);
     double bestPathDistanceSoFar=HUGE_VAL;
-    struct timespec zero;
-    clock_gettime(CLOCK_MONOTONIC, &zero);
+
+    //for POSIX:
+    //struct timespec zero;
+    //clock_gettime(CLOCK_MONOTONIC, &zero);
+
+    clock_t beginTicks = clock();
+    clock_t endTicks = clock() + timeout*CLK_TCK;
+    
     for (int iteration = 1; true; ++iteration)
       {
         //cout << "a" << endl;
@@ -240,7 +246,7 @@ void antTSP(vector<city> cities, unsigned timeout)
             for (int antNum = 0; antNum < numAnts; antNum++)
             {   chooseNextCity(ants[antNum], numCities, pheromMatrix, distMatrix);
             }
-            //#pragma omp barrier
+            #pragma omp barrier
         }
 
         //cout << "c" << endl;
@@ -298,14 +304,25 @@ void antTSP(vector<city> cities, unsigned timeout)
            bestPathSoFar = bestPath;
         }
 
-	struct timespec now;
-	clock_gettime(CLOCK_MONOTONIC, &now);
-       float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-       cout << iteration << "," << dt
-	    << "," << bestPathDistanceSoFar << endl;
-       if(dt > timeout) {
-	 exit(0);
-       }
+        #ifndef _WIN32
+	    struct timespec now;
+	    clock_gettime(CLOCK_MONOTONIC, &now);
+        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
+        cout << iteration << "," << dt << "," << bestPathDistanceSoFar << endl;
+        if(dt > timeout) {  exit(0); }
+        #endif
+
+        #ifdef _WIN32
+        clock_t curTicks = clock();
+        
+        double dt = (curTicks-beginTicks)/(double)CLOCKS_PER_SEC;
+        cout << "Iteration:" << iteration << " Time: " << dt << " Best Distance Found:" << bestPathDistanceSoFar << endl;
+
+        if (curTicks >= endTicks)
+        {   cout << "Iterations completed:" << iteration << endl;
+            exit(0);
+        }
+        #endif
     }
 }
 

@@ -210,7 +210,7 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned timeout)
 	    << "," << population[minIndex].distance << endl;
 
        if(dt > timeout) {
-	 exit(0);
+         exit(0);
        }
 
        //tournament elitist selection
@@ -242,7 +242,7 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned timeout)
        }
        
 
- /***** 3.)  Randomly MUTATE some of the children.  This corresponds to just flipping two nodes in the path, and keeping it only if the path is an improvement. */
+ /***** 3.)  Randomly MUTATE some of the children.  This corresponds to just randomly flipping a few nodes in a path */
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
        {   //mutate
