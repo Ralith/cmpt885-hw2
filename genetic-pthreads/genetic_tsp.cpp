@@ -23,6 +23,8 @@ double mutation_likelihood = 0.1;
 int tournamentSize = 5;
 double tournamentProb = 0.6;
 
+struct drand48_data *randstate;
+
 struct city {
   float x, y;
   string name;
@@ -103,7 +105,11 @@ int main(int argc, char **argv) {
 
   Threadpool p(cores);
 
-  srand ( time(NULL) );
+  time_t seedbase = time(NULL);
+  randstate = new struct drand48_data[cores];
+  for(unsigned i = 0; i < cores; ++i) {
+    srand48_r(seedbase+i, &randstate[i]);
+  }
 
   ifstream datafile;
   datafile.open(path.c_str(), ios::in);
@@ -174,7 +180,7 @@ protected:
 public:
   DistanceEvaluator() {};
   DistanceEvaluator(calculatedpath *p, double **d, bool l=false) : path(p), distMatrix(d), lazy(l) {}
-  virtual void run() {
+  virtual void run(unsigned thread) {
     if(!lazy || path->distance == 0) {
       path->evaluateDistance(distMatrix);
     }
@@ -188,10 +194,15 @@ protected:
 public:
   Mutator() {};
   Mutator(calculatedpath *c) : c(c) {};
-  virtual void run() {
-    if(rand()%100 < (mutation_likelihood*100)) { //random number from 0-99.  accurate to 2 decimal places
+  virtual void run(unsigned thread) {
+    double rand;
+    drand48_r(&randstate[thread], &rand);
+    if(rand < mutation_likelihood) {
       for(int j = 0; j < 5; j++) { //swap a few cities
-	swap(c->path[rand()%c->path.size()], c->path[rand()%c->path.size()]);
+	long rand1, rand2;
+	lrand48_r(&randstate[thread], &rand1);
+	lrand48_r(&randstate[thread], &rand2);
+	swap(c->path[rand1%c->path.size()], c->path[rand2%c->path.size()]);
       }
     }
   }
@@ -216,7 +227,7 @@ public:
   Crossover() {};
   Crossover(calculatedpath *child, const calculatedpath *parent1, const calculatedpath *parent2, double **distMatrix) :
     child(child), parent1(parent1), parent2(parent2), distMatrix(distMatrix) {};
-  virtual void run() {
+  virtual void run(unsigned thread) {
     vector<int> path(parent1->path.size());
      
     //hash map to quickly check if a city already exists in child's path
@@ -254,7 +265,9 @@ public:
 	  if (!hasUsedCity[x])
 	    availCities.push_back(x);
 	}
-	int randCity = availCities[rand()%availCities.size()];
+	long rand;
+	lrand48_r(&randstate[thread], &rand);
+	int randCity = availCities[rand%availCities.size()];
 	path[i+1] = randCity;
 	hasUsedCity[randCity] = true;
       }
@@ -320,12 +333,16 @@ calculatedpath geneticTSP(vector<city> &cities, Threadpool &p, unsigned timeout)
        int numSelected = 0;
        while (numSelected != population.size()/2)
        {  vector<calculatedpath> curTournament(tournamentSize);
-          for (unsigned i = 0; i < tournamentSize; i++)
-          {  curTournament[i] = population[rand()%population.size()];
+          for(unsigned i = 0; i < tournamentSize; i++) {
+	    long rand;
+	    lrand48_r(&randstate[0], &rand);
+	    curTournament[i] = population[rand%population.size()];
           }
           sort(curTournament.begin(), curTournament.end());
-          for (int i = 0; i < tournamentSize; i++)
-          {   if (rand()%10000 < (double)(tournamentProb*pow((double)(1-tournamentProb),i)*10000))
+          for (int i = 0; i < tournamentSize; i++) {
+	    double rand;
+	    drand48_r(&randstate[0], &rand);
+	    if (rand < (double)(tournamentProb*pow((double)(1-tournamentProb),i)))
               {  bestpop[numSelected] = curTournament[i];
                  numSelected++;
                  if (numSelected == population.size()/2)
@@ -384,7 +401,7 @@ protected:
 public:
   MatrixGen() {};
   MatrixGen(double **retDistMatrix, size_t i, const vector<city> *cities) : retDistMatrix(retDistMatrix), i(i), cities(cities) {};
-  virtual void run() {
+  virtual void run(unsigned thread) {
     retDistMatrix[i] = new double[cities->size()];
     //calculate distance from city i to all other cities:
     for (int j = 0; j < cities->size(); j++) {
@@ -414,7 +431,7 @@ protected:
 public:
   PathGenerator() {};
   PathGenerator(const vector<int> *u, calculatedpath *r) : unshuffledPath(u), ret(r) {};
-  virtual void run() {
+  virtual void run(unsigned thread) {
     vector<int> randPath = *unshuffledPath;
     random_shuffle(randPath.begin(), randPath.end());
     *ret = calculatedpath(randPath);

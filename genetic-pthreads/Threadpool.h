@@ -17,7 +17,7 @@ public:
   Task() : done(false) {};
   virtual ~Task() {};
 
-  virtual void run()=0;
+  virtual void run(unsigned thread)=0;
 };
 
 class Threadpool {
@@ -29,6 +29,12 @@ protected:
   RingBuffer<Task *> tasks;
   sem_t sem;
   unsigned taskCount;
+
+  struct threadarg {
+    Threadpool *instance;
+    unsigned id;
+  };
+  threadarg *args;
 
   int freeThread();
 

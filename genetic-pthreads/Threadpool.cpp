@@ -1,12 +1,12 @@
 #include "Threadpool.h"
 
 extern "C" void *_threadBody(void *self) {
-  Threadpool *pool = static_cast<Threadpool*>(self);
+  Threadpool::threadarg *a = static_cast<Threadpool::threadarg*>(self);
 
   Task *t;
-  while((t = pool->tasks.get())) {
-    t->run();
-    sem_post(&pool->sem);
+  while((t = a->instance->tasks.get())) {
+    t->run(a->id);
+    sem_post(&a->instance->sem);
   }
 
   return 0;
@@ -14,10 +14,12 @@ extern "C" void *_threadBody(void *self) {
 
 Threadpool::Threadpool(unsigned size_) :
   size(size_), threads(new pthread_t[size_]),
-  tasks(size_), taskCount(0) {
+  tasks(size_), taskCount(0), args(new threadarg[size_]) {
   sem_init(&sem, 0, 0);
   for(unsigned i = 0; i < size; ++i) {
-    pthread_create(&threads[i], NULL, _threadBody, this);
+    args[i].instance = this;
+    args[i].id = i;
+    pthread_create(&threads[i], NULL, _threadBody, &args[i]);
   }
 }
 Threadpool::~Threadpool() {
@@ -28,6 +30,7 @@ Threadpool::~Threadpool() {
     pthread_join(threads[i], 0);
   }
   delete[] threads;
+  delete[] args;
   sem_destroy(&sem);
 }
 
