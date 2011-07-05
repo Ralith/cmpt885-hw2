@@ -80,7 +80,7 @@ double** genDistMatrix(const vector<city> &cities);
 double** genPheromMatrix(int numCities);
 void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix, struct drand48_data *randstate);
 void intensifyPheromoneTrails(ant &curAnt, int numCities, double **pheromMatrix);
-void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *randstate);
+void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand48_data *randstate);
 
 ostream& operator<<(ostream& os, const city& c) {
   os << c.name << " (" << c.x << ", " << c.y << ")";
@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    antTSP(cities, timeout, randstate);
+    antTSP(cities, cores, timeout, randstate);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
       cout << "City " << (*i).index << ":" << *i << endl;
     }
@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
 	      return 5;
 	    }
     }
-     antTSP(cities, timeout, randstate);
+     antTSP(cities, cores, timeout, randstate);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i)
 	  cout << "City " << (*i).index << ":" << *i << endl;
       
@@ -206,7 +206,7 @@ int main(int argc, char **argv) {
 
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since each ant works independently.  
-void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *randstate)
+void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand48_data *randstate)
 {   cout << "Got " << cities.size() << " cities.  Setting one ant per city." << endl;
     
     
@@ -225,16 +225,9 @@ void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *randsta
     vector<int> bestPathSoFar(numCities);
     double bestPathDistanceSoFar=HUGE_VAL;
 
-    #ifndef _WIN32
     struct timespec zero;
     clock_gettime(CLOCK_MONOTONIC, &zero);
-    #endif
 
-    #ifdef _WIN32
-    clock_t beginTicks = clock();
-    clock_t endTicks = clock() + timeout*CLK_TCK;
-    #endif
-    
     for (int iteration = 1; true; ++iteration)
       {
         //cout << "a" << endl;
@@ -310,25 +303,15 @@ void antTSP(vector<city> &cities, unsigned timeout, struct drand48_data *randsta
            bestPathSoFar = bestPath;
         }
 
-        #ifndef _WIN32
 	    struct timespec now;
 	    clock_gettime(CLOCK_MONOTONIC, &now);
         float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-        cout << iteration << "," << dt << "," << bestPathDistanceSoFar << endl;
-        if(dt > timeout) {  exit(0); }
-        #endif
-
-        #ifdef _WIN32
-        clock_t curTicks = clock();
-        
-        double dt = (curTicks-beginTicks)/(double)CLOCKS_PER_SEC;
-        cout << "Iteration:" << iteration << " Time: " << dt << " Best Distance Found:" << bestPathDistanceSoFar << endl;
-
-        if (curTicks >= endTicks)
-        {   cout << "Iterations completed:" << iteration << endl;
-            exit(0);
+        cout << "Threads:" << cores << " Iteration:" << iteration << " ElaspedTime:" << dt << " BestDist:" << bestPathDistanceSoFar << endl;
+        if(dt >= timeout) 
+        { cout << "TotalIterations:" << iteration << endl; 
+          exit(0);
         }
-        #endif
+
     }
 }
 

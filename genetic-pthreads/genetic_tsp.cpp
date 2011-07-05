@@ -60,7 +60,7 @@ struct calculatedpath {
 };
 
 
-calculatedpath geneticTSP(vector<city> &cities, Threadpool &p, unsigned timeout);
+calculatedpath geneticTSP(vector<city> &cities, unsigned cores, Threadpool &p, unsigned timeout);
 double** genDistMatrix(const vector<city> &cities, Threadpool &p);
 void genInitialPopulation(vector<calculatedpath> &retPop, unsigned numCities, Threadpool &p);
 
@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    geneticTSP(cities, p, timeout);
+    geneticTSP(cities, cores, p, timeout);
     for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
       cout << "City " << (*i).index << ":" << *i << endl;
     }
@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
 	  return 5;
 	}
       }
-    geneticTSP(cities, p, timeout);
+    geneticTSP(cities, cores, p, timeout);
       for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
 	cout << "City " << (*i).index << ":" << *i << endl;
       }
@@ -279,7 +279,7 @@ public:
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since during each generation, evaluating distances for each candidate path is independent of other paths.  
 //similarly, crossing over to generate new children is also independent from child to child.
-calculatedpath geneticTSP(vector<city> &cities, Threadpool &p, unsigned timeout)
+calculatedpath geneticTSP(vector<city> &cities, unsigned cores, Threadpool &p, unsigned timeout)
 {
   cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
@@ -319,11 +319,13 @@ calculatedpath geneticTSP(vector<city> &cities, Threadpool &p, unsigned timeout)
        struct timespec now;
        clock_gettime(CLOCK_MONOTONIC, &now);
        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-       cout << generation << "," << dt
-	    << "," << population[minIndex].distance << endl;
+       cout << "Threads:" << cores << " Iteration:" << generation << " ElaspedTime:" << dt << " BestDist:" << population[minIndex].distance << endl;
 
-       if(dt > timeout) {
-	 exit(0);
+       if(dt >= timeout) {
+	    cout << "TotalIterations:" << generation << endl;
+         exit(0);
+        
+
        }
 
        //tournament elitist selection
