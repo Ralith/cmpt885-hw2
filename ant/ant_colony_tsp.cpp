@@ -132,8 +132,8 @@ int main(int argc, char **argv) {
   }
   cores = cores ? cores : omp_get_num_procs();
   omp_set_num_threads(cores);
-  cout << "Number of threads: " << cores << endl;
-  cout << "Data file: " << path << endl;
+  //cout << "Number of threads: " << cores << endl;
+  //cout << "Data file: " << path << endl;
 
   time_t seedbase = time(NULL);
   struct drand48_data *randstate = new struct drand48_data[cores];
@@ -169,10 +169,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    antTSP(cities, cores, timeout, randstate);
-    for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
-      cout << "City " << (*i).index << ":" << *i << endl;
-    }
+
 
   } 
   else 
@@ -195,12 +192,9 @@ int main(int argc, char **argv) {
 	      return 5;
 	    }
     }
-     antTSP(cities, cores, timeout, randstate);
-    for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i)
-	  cout << "City " << (*i).index << ":" << *i << endl;
-      
   }
 
+  antTSP(cities, cores, timeout, randstate);
   return 0;
 }
 
@@ -231,15 +225,13 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
 
     cout << "Threads,Iteration,ElapsedTime,BestDist" << endl;
     for (int iteration = 1; true; ++iteration)
-      {
-        //cout << "a" << endl;
+    {
         //a.)  distribute ants evenly amongst the graph.  assign one ant to each city.
         #pragma omp parallel for
         for (int i = 0; i < numAnts; i++)
         {   ants[i] = ant(numCities, i);
         }
 
-        //cout << "b" << endl;
         //b.) get all ants to perform a tour.  this corresponds to telling them to go to a nextCity() NUMCITIES-1 times (since a tour == NUMCITIES, and we already chose the first city for them)
         for (int i = 0; i < numCities-1; i++)
         {   //parallelize the ants (they create their own tours independently)
@@ -250,7 +242,6 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
             #pragma omp barrier
         }
 
-        //cout << "c" << endl;
         //c.)  distribute pheromone across the tour (amount deposited = inversely proportional to distance of tour)
         /***** THIS HAS A CRITICAL SECTION */
         #pragma omp parallel for
@@ -258,7 +249,6 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
         {   intensifyPheromoneTrails(ants[i], numCities, pheromMatrix);
         }
 
-        //cout << "d" << endl;
         //d.)  evaporate pheromone trails for all edges in the graph since it's the end of an iteration
         #pragma omp parallel for
         for (int i = 0; i < numCities; i++)
@@ -269,7 +259,6 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
             }
         }
 
-        //cout << "e" << endl;
         //e.)  finally, find the best path from this iteration by going through the pheromone trail.  start at first city
         vector<int> bestPath(numCities);
         vector<bool> visited(numCities);
@@ -310,12 +299,12 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
         float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
         //float dt_lastCout = (now.tv_sec - lastCout.tv_sec) + 1e-9*(now.tv_nsec - lastCout.tv_sec);
 
-        //if (dt_lastCout >= 1) //only print it out at most once a second...
-        {   cout << cores << "," << iteration << "," << dt << "," << bestPathDistanceSoFar << endl;
+        //if (dt_lastCout >= 1) //only print it out at most ten times a second...
+        {   cout << "ant_openmp" << cores << "," << iteration << "," << dt << "," << bestPathDistanceSoFar << endl;
             //clock_gettime(CLOCK_MONOTONIC, &lastCout);
         }
         if(dt >= timeout) 
-        { cout << "TotalIterations:" << iteration << endl; 
+        { //cout << "TotalIterations:" << iteration << endl; 
           exit(0);
         }
 
@@ -325,10 +314,6 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
 void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **distMatrix, struct drand48_data *randstate)
 {  int from = curAnt.tour[curAnt.tourIndex];
    double denominator = 0.0;
-
-   if (curAnt.tourIndex == numCities-1)
-   {  cout << " this shouldn't happen " << endl;
-   }
 
    //calculate denominator in probabilistic equation.  this corresponds to the sum of all non visited cities' edges' pheromones * the edge's visibility (1/dist)
    for (int to = 0; to < numCities; to++)
@@ -357,8 +342,8 @@ void chooseNextCity(ant &curAnt, int numCities, double **pheromMatrix, double **
             {  bestProb = prob;
                bestCity = to;
             }
-	    double rand;
-	    drand48_r(&randstate[omp_get_thread_num()], &rand);
+            double rand;
+            drand48_r(&randstate[omp_get_thread_num()], &rand);
             if (rand <= prob)
             {  foundCity = true;
                bestCity = to;

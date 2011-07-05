@@ -102,8 +102,8 @@ int main(int argc, char **argv) {
   }
   cores = cores ? cores : omp_get_num_procs();
   omp_set_num_threads(cores);
-  cout << "Number of threads: " << cores << endl;
-  cout << "Data file: " << path << endl;
+  //cout << "Number of threads: " << cores << endl;
+  //cout << "Data file: " << path << endl;
 
   time_t seedbase = time(NULL);
   struct drand48_data *randstate = new struct drand48_data[cores];
@@ -139,10 +139,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    geneticTSP(cities, cores, timeout, randstate);
-    for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
-      cout << "City " << (*i).index << ":" << *i << endl;
-    }
+
 
   } else {
     datafile >> length;
@@ -162,12 +159,10 @@ int main(int argc, char **argv) {
 	  return 5;
 	}
       }
-    geneticTSP(cities, cores, timeout, randstate);
-      for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
-	cout << "City " << (*i).index << ":" << *i << endl;
-      }
+
   }
   
+  geneticTSP(cities, cores, timeout, randstate);
   return 0;
 }
 
@@ -176,7 +171,7 @@ int main(int argc, char **argv) {
 //similarly, crossing over to generate new children is also independent from child to child.
 calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand48_data *randstate)
 {
-  cout << "Got " << cities.size() << " cities." << endl;
+  //cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
     double** distMatrix = genDistMatrix(cities);
     
@@ -191,7 +186,7 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout
     {   population[i].evaluateDistance(distMatrix);
     }
     
-    cout << "Threads,Iteration,ElapsedTime,BestDist" << endl;
+    //cout << "Threads,Iteration,ElapsedTime,BestDist" << endl;
 
     struct timespec zero;
     clock_gettime(CLOCK_MONOTONIC, &zero);
@@ -212,10 +207,10 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout
        struct timespec now;
        clock_gettime(CLOCK_MONOTONIC, &now);
        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-       cout << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
+       cout << "genetic_openmp" << "," << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
 
        if(dt >= timeout) {
-         cout << "TotalIterations:" << generation << endl;
+         //cout << "TotalIterations:" << generation << endl;
          exit(0);
        }
 
@@ -226,16 +221,16 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout
        int numSelected = 0;
        while (numSelected != population.size()/2)
        {  vector<calculatedpath> curTournament(tournamentSize);
-	 long lrand;
-	 for (unsigned i = 0; i < tournamentSize; i++) {
-	   lrand48_r(&randstate[omp_get_thread_num()], &lrand); 
-	   curTournament[i] = population[lrand%population.size()];
-	 }
+          long lrand;
+          for (unsigned i = 0; i < tournamentSize; i++) {
+              lrand48_r(&randstate[omp_get_thread_num()], &lrand); 
+	          curTournament[i] = population[lrand%population.size()];
+	      }
           sort(curTournament.begin(), curTournament.end());
-	  double drand;
+          double drand;
           for (int i = 0; i < tournamentSize; i++) {
-	    drand48_r(&randstate[omp_get_thread_num()], &drand);
-	    if (drand < (double)(tournamentProb*pow((double)(1-tournamentProb),i)))
+              drand48_r(&randstate[omp_get_thread_num()], &drand);
+              if (drand < (double)(tournamentProb*pow((double)(1-tournamentProb),i)))
               {  bestpop[numSelected] = curTournament[i];
                  numSelected++;
                  if (numSelected == population.size()/2)
@@ -248,7 +243,7 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout
        vector<calculatedpath> children(bestpop.size()); //every two parent pairs creates one child, i.e. #children == #bestpop, and #children + #bestpop == population
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
-	 {  crossover(children[i], bestpop[i], bestpop[(i+1)%bestpop.size()], distMatrix, randstate); //mod for wraparound
+       {  crossover(children[i], bestpop[i], bestpop[(i+1)%bestpop.size()], distMatrix, randstate); //mod for wraparound
        }
        
 
@@ -256,15 +251,15 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout
        #pragma omp parallel for
        for (int i = 0; i < children.size(); i++)
        {   //mutate
-	 double rand;
-	 drand48_r(&randstate[omp_get_thread_num()], &rand);
+           double rand;
+	       drand48_r(&randstate[omp_get_thread_num()], &rand);
            if (rand < (mutation_likelihood))
            {  for (int j = 0; j < 5; j++) //swap a few cities
               {
-		long rand1, rand2;
-		lrand48_r(&randstate[omp_get_thread_num()], &rand1);
-		lrand48_r(&randstate[omp_get_thread_num()], &rand2);
-		swap(children[i].path[rand1%children[i].path.size()], children[i].path[rand2%children[i].path.size()]);
+                  long rand1, rand2;
+                  lrand48_r(&randstate[omp_get_thread_num()], &rand1);
+                  lrand48_r(&randstate[omp_get_thread_num()], &rand2);
+                  swap(children[i].path[rand1%children[i].path.size()], children[i].path[rand2%children[i].path.size()]);
               }
            }
        }

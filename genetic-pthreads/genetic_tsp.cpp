@@ -100,8 +100,8 @@ int main(int argc, char **argv) {
     cerr << "Usage: " << argv[0] << " <threads> <seconds> <datafile>" << endl;
     return 1;
   }
-  cout << "Number of threads: " << cores << endl;
-  cout << "Data file: " << path << endl;
+  //cout << "Number of threads: " << cores << endl;
+  //cout << "Data file: " << path << endl;
 
   Threadpool p(cores);
 
@@ -139,11 +139,6 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-    geneticTSP(cities, cores, p, timeout);
-    for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
-      cout << "City " << (*i).index << ":" << *i << endl;
-    }
-
   } else {
     datafile >> length;
     vector<city> cities(length);
@@ -162,12 +157,9 @@ int main(int argc, char **argv) {
 	  return 5;
 	}
       }
-    geneticTSP(cities, cores, p, timeout);
-      for(vector<city>::iterator i = cities.begin(); i != cities.end(); ++i) {
-	cout << "City " << (*i).index << ":" << *i << endl;
-      }
   }
-  
+
+  geneticTSP(cities, cores, p, timeout);
   return 0;
 }
 
@@ -281,7 +273,7 @@ public:
 //similarly, crossing over to generate new children is also independent from child to child.
 calculatedpath geneticTSP(vector<city> &cities, unsigned cores, Threadpool &p, unsigned timeout)
 {
-  cout << "Got " << cities.size() << " cities." << endl;
+  //cout << "Got " << cities.size() << " cities." << endl;
     //generate distance matrix for the complete tsp graph
   double** distMatrix = genDistMatrix(cities, p);
     
@@ -299,7 +291,7 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, Threadpool &p, u
     p.join();
     delete[] des;
     
-    cout << "Threads,Iteration,ElapsedTime,BestDist" << endl;
+    //cout << "Threads,Iteration,ElapsedTime,BestDist" << endl;
 
     struct timespec zero;
     clock_gettime(CLOCK_MONOTONIC, &zero);
@@ -321,10 +313,10 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, Threadpool &p, u
        struct timespec now;
        clock_gettime(CLOCK_MONOTONIC, &now);
        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-       cout << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
+       cout << "genetic_pthreads" << "," << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
 
        if(dt >= timeout) {
-	    cout << "TotalIterations:" << generation << endl;
+	   // cout << "TotalIterations:" << generation << endl;
          exit(0);
         
 
