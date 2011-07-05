@@ -23,12 +23,12 @@ int numAnts = 1000;
 
 
 //ant colony parameters:
-double alpha = 0.7; //favour pheromone level over distance (pp 430)
-double beta = 1.0;  //favour distance over pheromone level (pp 430)
-double p = 0.8;     //intensification/evaporation value.  means 10% evaporation per tour
-double Q = 100;     //constant affecting how much base pheromone to put into an edge at each iteration
-double BASE_PHEROMONE = 1;
-double MAX_PHEROMONE = 10000.0;
+double alpha = 0.6; //favour pheromone level over distance (pp 430)
+double beta = 1;  //favour distance over pheromone level (pp 430)
+double p = 0.6;     //intensification/evaporation value.  means 10% evaporation per tour
+double Q = 10;     //constant affecting how much base pheromone to put into an edge at each iteration
+double BASE_PHEROMONE = 10;
+double MAX_PHEROMONE = 1000.0;
 
 /** Overall algorithm (from "Jones: Artificial Intelligence:  A Systems Approach")
     for each iteration:  
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
     length = atoi(line.substr(line.find(':')+1).c_str());
     vector<city> cities(length);
     getline(datafile, line);
-    if(line != "EDGE_WEIGHT_TYPE : EUC_2D") {
+    if(line.find("EUC_2D") == string::npos) {
       cerr << "Noneuclidian inputs not supported!" << endl;
       return 6;
     }
@@ -213,21 +213,23 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
     int numCities = cities.size();
     numAnts = numCities;
     vector<ant> ants(numAnts);
-    BASE_PHEROMONE = (double)1.0 /numCities;
-
     //generate distance matrix for the complete tsp graph
     double** distMatrix = genDistMatrix(cities);
     //initialise pheromone matrix to BASE_PHEROM
     double** pheromMatrix = genPheromMatrix(numCities);
     
+    //double MAX_PHEROMONE = BASE_PHEROMONE * numCities;
     //from here on:  refer to paths as encoded indices of cities only (optimization) -- don't need x, y, or names anymore
     
     vector<int> bestPathSoFar(numCities);
     double bestPathDistanceSoFar=HUGE_VAL;
 
     struct timespec zero;
+    struct timespec lastCout;
+    clock_gettime(CLOCK_MONOTONIC, &lastCout);
     clock_gettime(CLOCK_MONOTONIC, &zero);
 
+    cout << "Threads,Iteration,ElapsedTime,BestDist" << endl;
     for (int iteration = 1; true; ++iteration)
       {
         //cout << "a" << endl;
@@ -306,7 +308,12 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
 	    struct timespec now;
 	    clock_gettime(CLOCK_MONOTONIC, &now);
         float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-        cout << "Threads:" << cores << " Iteration:" << iteration << " ElaspedTime:" << dt << " BestDist:" << bestPathDistanceSoFar << endl;
+        //float dt_lastCout = (now.tv_sec - lastCout.tv_sec) + 1e-9*(now.tv_nsec - lastCout.tv_sec);
+
+        //if (dt_lastCout >= 1) //only print it out at most once a second...
+        {   cout << cores << "," << iteration << "," << dt << "," << bestPathDistanceSoFar << endl;
+            //clock_gettime(CLOCK_MONOTONIC, &lastCout);
+        }
         if(dt >= timeout) 
         { cout << "TotalIterations:" << iteration << endl; 
           exit(0);
@@ -403,8 +410,7 @@ void intensifyPheromoneTrails(ant &curAnt, int numCities, double **pheromMatrix)
         {  
            #pragma omp flush(pheromMatrix) //flush so that all threads' view of pheromMatrix is consistent
            pheromMatrix[from][to] += (Q/curAnt.tourLength)*p;
-           if (pheromMatrix[from][to] > MAX_PHEROMONE)
-              pheromMatrix[from][to] = MAX_PHEROMONE;
+           pheromMatrix[from][to] = min(pheromMatrix[from][to], MAX_PHEROMONE);
            pheromMatrix[to][from] = pheromMatrix[from][to];
         }
     }

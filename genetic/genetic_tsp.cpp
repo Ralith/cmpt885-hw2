@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
     length = atoi(line.substr(line.find(':')+1).c_str());
     vector<city> cities(length);
     getline(datafile, line);
-    if(line != "EDGE_WEIGHT_TYPE : EUC_2D") {
+    if(line.find("EUC_2D") == string::npos) {
       cerr << "Noneuclidian inputs not supported!" << endl;
       return 6;
     }
@@ -191,6 +191,8 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout
     {   population[i].evaluateDistance(distMatrix);
     }
     
+    cout << "Threads,Iteration,ElapsedTime,BestDist" << endl;
+
     struct timespec zero;
     clock_gettime(CLOCK_MONOTONIC, &zero);
     //"evolve" the seeded population for a specified number of generations.
@@ -210,8 +212,8 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout
        struct timespec now;
        clock_gettime(CLOCK_MONOTONIC, &now);
        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-       cout << "Threads:" << cores << " Iteration:" << generation << " ElaspedTime:" << dt << " BestDist:" << population[minIndex].distance << endl;
-       
+       cout << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
+
        if(dt >= timeout) {
          cout << "TotalIterations:" << generation << endl;
          exit(0);
