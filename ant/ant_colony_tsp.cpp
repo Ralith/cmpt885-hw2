@@ -169,6 +169,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
+      antTSP(cities, cores, timeout, randstate);
 
 
   } 
@@ -192,18 +193,17 @@ int main(int argc, char **argv) {
 	      return 5;
 	    }
     }
+       antTSP(cities, cores, timeout, randstate);
   }
 
-  antTSP(cities, cores, timeout, randstate);
+
   return 0;
 }
 
 //return ordered path corresponding to best path found
 //note that this is easily parallelizable since each ant works independently.  
 void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand48_data *randstate)
-{   cout << "Got " << cities.size() << " cities.  Setting one ant per city." << endl;
-    
-    
+{      
     int numCities = cities.size();
     numAnts = numCities;
     vector<ant> ants(numAnts);
@@ -223,7 +223,6 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
     clock_gettime(CLOCK_MONOTONIC, &lastCout);
     clock_gettime(CLOCK_MONOTONIC, &zero);
 
-    cout << "Threads,Iteration,ElapsedTime,BestDist" << endl;
     for (int iteration = 1; true; ++iteration)
     {
         //a.)  distribute ants evenly amongst the graph.  assign one ant to each city.
@@ -300,11 +299,11 @@ void antTSP(vector<city> &cities, unsigned cores, unsigned timeout, struct drand
         //float dt_lastCout = (now.tv_sec - lastCout.tv_sec) + 1e-9*(now.tv_nsec - lastCout.tv_sec);
 
         //if (dt_lastCout >= 1) //only print it out at most ten times a second...
-        {   cout << "ant_openmp" << cores << "," << iteration << "," << dt << "," << bestPathDistanceSoFar << endl;
+        {   //cout << "ant_openmp," << cores << "," << iteration << "," << dt << "," << bestPathDistanceSoFar << endl;
             //clock_gettime(CLOCK_MONOTONIC, &lastCout);
         }
         if(dt >= timeout) 
-        { //cout << "TotalIterations:" << iteration << endl; 
+        { cout << "ant_openmp," << cores << "," << iteration << "," << dt << "," << bestPathDistanceSoFar << endl;
           exit(0);
         }
 

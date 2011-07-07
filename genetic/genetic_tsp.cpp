@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
-
+      geneticTSP(cities, cores, timeout, randstate);
 
   } else {
     datafile >> length;
@@ -159,10 +159,10 @@ int main(int argc, char **argv) {
 	  return 5;
 	}
       }
-
+      geneticTSP(cities, cores, timeout, randstate);
   }
   
-  geneticTSP(cities, cores, timeout, randstate);
+
   return 0;
 }
 
@@ -207,11 +207,11 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, unsigned timeout
        struct timespec now;
        clock_gettime(CLOCK_MONOTONIC, &now);
        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-       cout << "genetic_openmp" << "," << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
+       //cout << "genetic_openmp" << "," << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
 
        if(dt >= timeout) {
-         //cout << "TotalIterations:" << generation << endl;
-         exit(0);
+          cout << "genetic_openmp" << "," << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
+          exit(0);
        }
 
        //tournament elitist selection

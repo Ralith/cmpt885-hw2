@@ -139,6 +139,7 @@ int main(int argc, char **argv) {
       datafile >> cities[i].x;
       datafile >> cities[i].y;
     }
+      geneticTSP(cities, cores, p, timeout);
   } else {
     datafile >> length;
     vector<city> cities(length);
@@ -157,9 +158,10 @@ int main(int argc, char **argv) {
 	  return 5;
 	}
       }
+      geneticTSP(cities, cores, p, timeout);
   }
 
-  geneticTSP(cities, cores, p, timeout);
+
   return 0;
 }
 
@@ -296,7 +298,7 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, Threadpool &p, u
     struct timespec zero;
     clock_gettime(CLOCK_MONOTONIC, &zero);
     //"evolve" the seeded population for a specified number of generations.
-    for(unsigned generation = 0; true; ++generation)
+    for(unsigned generation = 1; true; ++generation)
     {
  /***** 1.)  SELECT only the best half of the population for 'mating' */
 
@@ -313,10 +315,10 @@ calculatedpath geneticTSP(vector<city> &cities, unsigned cores, Threadpool &p, u
        struct timespec now;
        clock_gettime(CLOCK_MONOTONIC, &now);
        float dt = (now.tv_sec - zero.tv_sec) + 1e-9*(now.tv_nsec - zero.tv_nsec);
-       cout << "genetic_pthreads" << "," << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
+       //cout << "genetic_pthreads" << "," << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
 
        if(dt >= timeout) {
-	   // cout << "TotalIterations:" << generation << endl;
+	     cout << "genetic_pthreads" << "," << cores << "," << generation << "," << dt << "," << (double)population[minIndex].distance << endl;
          exit(0);
         
 
